@@ -68,7 +68,7 @@ enum
 enum
 {
   COMMIT_SIGNAL,
-  COMMITED_SIGNAL,
+  COMMITTED_SIGNAL,
   LAST_SIGNAL
 };
 
@@ -1247,7 +1247,7 @@ nle_composition_class_init (NleCompositionClass * klass)
       GST_PARAM_MUTABLE_PLAYING);
   g_object_class_install_properties (gobject_class, PROP_LAST, properties);
 
-  _signals[COMMITED_SIGNAL] =
+  _signals[COMMITTED_SIGNAL] =
       g_signal_new ("commited", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_FIRST,
       0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_BOOLEAN);
 
@@ -2613,7 +2613,7 @@ _emit_committed_signal_func (NleComposition * comp, gpointer udata)
 {
   GST_INFO_OBJECT (comp, "Emitting COMMITTED now that the stack " "is ready");
 
-  g_signal_emit (comp, _signals[COMMITED_SIGNAL], 0, TRUE);
+  g_signal_emit (comp, _signals[COMMITTED_SIGNAL], 0, TRUE);
 }
 
 static void
@@ -2690,7 +2690,7 @@ _commit_func (NleComposition * comp, UpdateCompositionData * ucompo)
   if (!_commit_all_values (comp, ucompo->reason)) {
     GST_DEBUG_OBJECT (comp, "Nothing to commit, leaving");
 
-    g_signal_emit (comp, _signals[COMMITED_SIGNAL], 0, FALSE);
+    g_signal_emit (comp, _signals[COMMITTED_SIGNAL], 0, FALSE);
     _post_start_composition_update_done (comp, ucompo->seqnum, ucompo->reason);
 
     return;
@@ -2701,7 +2701,7 @@ _commit_func (NleComposition * comp, UpdateCompositionData * ucompo)
 
     update_start_stop_duration (comp);
 
-    g_signal_emit (comp, _signals[COMMITED_SIGNAL], 0, TRUE);
+    g_signal_emit (comp, _signals[COMMITTED_SIGNAL], 0, TRUE);
 
   } else {
     gboolean reverse;
@@ -2727,7 +2727,7 @@ _commit_func (NleComposition * comp, UpdateCompositionData * ucompo)
       GST_INFO_OBJECT (comp, "No new stack set, we can go and keep acting on"
           " our children");
 
-      g_signal_emit (comp, _signals[COMMITED_SIGNAL], 0, TRUE);
+      g_signal_emit (comp, _signals[COMMITTED_SIGNAL], 0, TRUE);
     }
   }
 
