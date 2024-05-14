@@ -821,12 +821,76 @@ modesetting_failed:
 }
 
 static gboolean
+get_drm_formats (GstKMSSink * self, drmModePlane * plane, GValue * val)
+{
+  drmModePropertyBlobRes *blob = NULL;
+  struct drm_format_modifier_blob *data;
+  uint32_t *fmts;
+  struct drm_format_modifier *mods;
+  guint i;
+
+  {
+    drmModeObjectProperties *props;;
+
+    props = drmModeObjectGetProperties (self->fd, plane->plane_id,
+        DRM_MODE_OBJECT_PLANE);
+    if (!props)
+      return FALSE;
+
+    for (i = 0; i < props->count_props; ++i) {
+      drmModePropertyPtr pprop = drmModeGetProperty (self->fd, props->props[i]);
+
+      if (pprop && g_str_equal (pprop->name, "IN_FORMATS")) {
+        blob = drmModeGetPropertyBlob (self->fd, props->prop_values[i]);
+        break;
+      }
+    }
+
+    g_clear_pointer (&props, drmModeFreeObjectProperties);
+  }
+
+  if (!blob) {
+    return FALSE;
+  }
+
+  data = blob->data;
+  fmts = (uint32_t *) ((char *) data + data->formats_offset);
+  mods =
+      (struct drm_format_modifier *) ((char *) data + data->modifiers_offset);
+
+  g_value_init (val, GST_TYPE_LIST);
+
+  for (i = 0; i < data->count_modifiers; ++i) {
+    guint64 j;
+    for (j = 0; j < 64; ++j) {
+      if (mods[i].formats & (1ull << j)) {
+        GValue drm_fourcc_string = G_VALUE_INIT;
+        uint32_t fmt = fmts[j + mods[i].offset];
+
+        g_value_init (&drm_fourcc_string, G_TYPE_STRING);
+
+        g_value_take_string (&drm_fourcc_string,
+            gst_video_dma_drm_fourcc_to_string (fmt, mods[i].modifier));
+
+        gst_value_list_append_and_take_value (val, &drm_fourcc_string);
+      }
+    }
+  }
+
+  drmModeFreePropertyBlob (blob);
+
+  return TRUE;
+}
+
+
+static gboolean
 ensure_allowed_caps (GstKMSSink * self, drmModeConnector * conn,
     drmModePlane * plane, drmModeRes * res)
 {
-  GstCaps *out_caps, *tmp_caps, *caps;
+  GstCaps *out_caps, *tmp_caps, *dmabuf_caps, *caps;
   int i, j;
   GstVideoFormat fmt;
+  GValue drm_formats = G_VALUE_INIT;
   const gchar *format;
   drmModeModeInfo *mode;
   gint count_modes;
@@ -835,13 +899,18 @@ ensure_allowed_caps (GstKMSSink * self, drmModeConnector * conn,
     return TRUE;
 
   out_caps = gst_caps_new_empty ();
-  if (!out_caps)
+  dmabuf_caps = gst_caps_new_empty ();
+  if (!out_caps || !dmabuf_caps)
     return FALSE;
 
   if (conn && self->modesetting_enabled)
     count_modes = conn->count_modes;
   else
     count_modes = 1;
+
+  if (self->has_prime_import && self->has_addfb2_modifiers) {
+    get_drm_formats (self, plane, &drm_formats);
+  }
 
   for (i = 0; i < count_modes; i++) {
     tmp_caps = gst_caps_new_empty ();
@@ -881,8 +950,38 @@ ensure_allowed_caps (GstKMSSink * self, drmModeConnector * conn,
       tmp_caps = gst_caps_merge (tmp_caps, caps);
     }
 
+    if (GST_VALUE_HOLDS_LIST (&drm_formats)) {
+      if (mode) {
+        caps = gst_caps_new_simple ("video/x-raw",
+            "format", G_TYPE_STRING, "DMA_DRM",
+            "width", G_TYPE_INT, mode->hdisplay,
+            "height", G_TYPE_INT, mode->vdisplay,
+            "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
+      } else {
+        caps = gst_caps_new_simple ("video/x-raw",
+            "format", G_TYPE_STRING, "DMA_DRM",
+            "width", GST_TYPE_INT_RANGE, res->min_width, res->max_width,
+            "height", GST_TYPE_INT_RANGE, res->min_height, res->max_height,
+            "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
+      }
+
+      if (caps) {
+        gst_caps_set_features_simple (caps,
+            gst_caps_features_new_single (GST_CAPS_FEATURE_MEMORY_DMABUF));
+
+        gst_caps_set_value (caps, "drm-format", &drm_formats);
+
+        dmabuf_caps = gst_caps_merge (dmabuf_caps, caps);
+      }
+    }
+
     out_caps = gst_caps_merge (out_caps, gst_caps_simplify (tmp_caps));
   }
+
+  /* Put dmabuf caps first to indicate their preference. */
+  out_caps = gst_caps_merge (gst_caps_simplify (dmabuf_caps), out_caps);
+
+  g_value_unset (&drm_formats);
 
   if (gst_caps_is_empty (out_caps)) {
     GST_DEBUG_OBJECT (self, "allowed caps is empty");
