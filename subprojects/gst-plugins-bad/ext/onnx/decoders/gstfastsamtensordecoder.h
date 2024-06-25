@@ -1,6 +1,6 @@
 /*
  * GStreamer gstreamer-fastsamtensordecoder
- * Copyright (C) 2023 Collabora Ltd
+ * Copyright (C) 2024 Collabora Ltd
  *
  * gstfastsamtensordecoder.h
  *
@@ -42,7 +42,7 @@ G_DECLARE_FINAL_TYPE (GstFastSAMTensorDecoder, gst_fastsam_tensor_decoder,
  * @iou_threshold: Min IOU threshold
  * @max_detection: Maximum detections/masks
  *
- * Since: 1.23
+ * Since: 1.26
  */
 struct _GstFastSAMTensorDecoder
 {
