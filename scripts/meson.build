@@ -12,7 +12,6 @@ release_modules = [
   'gst-editing-services',
   'gst-devtools',
   'gst-python',
-  'gstreamer-vaapi',
   'gst-docs',
   'gstreamer-sharp',
 ]
