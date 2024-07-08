@@ -201,6 +201,12 @@ typedef struct _GstAnalyticsSegMtdData
 {
   GstSegmentationType type;
   GstBuffer *masks;
+
+  gint masks_loc_x;
+  gint masks_loc_y;
+  guint masks_loc_w;
+  guint masks_loc_h;
+
   gsize region_count;
   guint32 region_ids[];         /* Must be last */
 } GstAnalyticsSegMtdData;
@@ -224,6 +230,14 @@ gst_analytics_segmentation_mtd_get_mtd_type (void)
 /**
  * gst_analytics_segmentation_mtd_get_mask:
  * @handle: Instance
+ * @masks_loc_x: (out caller-allocates)(not nullable): Left coordinate of the
+ * rectangle corresponding to the mask in the image.
+ * @masks_loc_y: (out caller-allocates)(not nullable): Top coordinate of the
+ * rectangle corresponding to the mask in the image.
+ * @masks_loc_w: (out caller-allocates)(not nullable): Width of the rectangle
+ * corresponding to the mask in the image.
+ * @masks_loc_h: (out caller-allocates)(not nullable): Height of the rectangle
+ * corresponding to the mask in the image.
  *
  * Get segmentation mask data.
  *
@@ -232,7 +246,9 @@ gst_analytics_segmentation_mtd_get_mtd_type (void)
  * Since: 1.26
  */
 GstBuffer *
-gst_analytics_segmentation_mtd_get_mask (GstAnalyticsSegmentationMtd * handle)
+gst_analytics_segmentation_mtd_get_mask (GstAnalyticsSegmentationMtd * handle,
+    gint * masks_loc_x, gint * masks_loc_y, guint * masks_loc_w, guint *
+    masks_loc_h)
 {
   GstAnalyticsSegMtdData *mtddata;
 
@@ -240,6 +256,11 @@ gst_analytics_segmentation_mtd_get_mask (GstAnalyticsSegmentationMtd * handle)
 
   mtddata = gst_analytics_relation_meta_get_mtd_data (handle->meta, handle->id);
   g_return_val_if_fail (mtddata != NULL, NULL);
+
+  *masks_loc_x = mtddata->masks_loc_x;
+  *masks_loc_y = mtddata->masks_loc_y;
+  *masks_loc_w = mtddata->masks_loc_w;
+  *masks_loc_h = mtddata->masks_loc_h;
 
   return gst_buffer_ref (mtddata->masks);
 }
@@ -339,6 +360,10 @@ gst_analytics_segmentation_mtd_get_region_count (GstAnalyticsSegmentationMtd *
  * @segmentation_type:(in): Segmentation type
  * @region_count:(in): Number of regions in the masks
  * @region_ids:(in) (array length=region_count): Arrays of region ids present in the mask.
+ * @masks_loc_x: Left coordinate of the rectangle corresponding to the masks in the image.
+ * @masks_loc_y: Top coordinate of the rectangle corresponding to the masks in the image.
+ * @masks_loc_w: Width of the rectangle corresponding to the masks in the image.
+ * @masks_loc_h: Height of the rectangle corresponding to the masks in the image.
  * @segmentation_mtd:(out)(not nullable): Handle update with newly added segmenation meta.
  *
  * Add analytics segmentation metadata to @instance.
@@ -350,7 +375,8 @@ gst_analytics_segmentation_mtd_get_region_count (GstAnalyticsSegmentationMtd *
 gboolean
 gst_analytics_relation_meta_add_segmentation_mtd (GstAnalyticsRelationMeta *
     instance, GstBuffer * buffer, GstSegmentationType segmentation_type,
-    gsize region_count, guint * region_ids, GstAnalyticsSegmentationMtd *
+    gsize region_count, guint * region_ids, gint masks_loc_x, gint masks_loc_y,
+    guint masks_loc_w, guint masks_loc_h, GstAnalyticsSegmentationMtd *
     segmentation_mtd)
 {
   const gsize region_ids_size = sizeof (guint) * region_count;
@@ -371,6 +397,10 @@ gst_analytics_relation_meta_add_segmentation_mtd (GstAnalyticsRelationMeta *
     mtddata->masks = buffer;
     mtddata->type = segmentation_type;
     mtddata->region_count = region_count;
+    mtddata->masks_loc_x = masks_loc_x;
+    mtddata->masks_loc_y = masks_loc_y;
+    mtddata->masks_loc_w = masks_loc_w;
+    mtddata->masks_loc_h = masks_loc_h;
     memcpy (mtddata->region_ids, region_ids, region_ids_size);
   }
 
@@ -395,10 +425,33 @@ gst_analytics_segmentation_mtd_transform (GstBuffer * transbuf,
     segdata = gst_analytics_relation_meta_get_mtd_data (transmtd->meta,
         transmtd->id);
     gst_buffer_ref (segdata->masks);
-  } else if (GST_VIDEO_META_TRANSFORM_IS_SCALE (type) && transbuf != buffer) {
+  } else if (GST_VIDEO_META_TRANSFORM_IS_SCALE (type)) {
+    GstVideoMetaTransform *trans = data;
+    gint ow, oh, nw, nh;
+
+    ow = GST_VIDEO_INFO_WIDTH (trans->in_info);
+    nw = GST_VIDEO_INFO_WIDTH (trans->out_info);
+    oh = GST_VIDEO_INFO_HEIGHT (trans->in_info);
+    nh = GST_VIDEO_INFO_HEIGHT (trans->out_info);
+
     segdata = gst_analytics_relation_meta_get_mtd_data (transmtd->meta,
         transmtd->id);
-    gst_buffer_ref (segdata->masks);
+
+    segdata->masks_loc_x *= nw;
+    segdata->masks_loc_x /= ow;
+
+    segdata->masks_loc_w *= nw;
+    segdata->masks_loc_w /= ow;
+
+    segdata->masks_loc_y *= nh;
+    segdata->masks_loc_y /= oh;
+
+    segdata->masks_loc_h *= nh;
+    segdata->masks_loc_h /= oh;
+
+    if (transbuf != buffer) {
+      gst_buffer_ref (segdata->masks);
+    }
   }
 
   return TRUE;
