@@ -1216,12 +1216,14 @@ gst_vtdec_session_output_callback (void *decompression_output_ref_con,
 
   if (status != noErr) {
     switch (status) {
+#ifdef kVTVideoDecoderReferenceMissingErr
       case kVTVideoDecoderReferenceMissingErr:
         /* ReferenceMissingErr is not critical, when it occurs the frame
          * usually has the kVTDecodeInfo_FrameDropped flag set. Log only for debugging purposes. */
         GST_DEBUG_OBJECT (vtdec, "ReferenceMissingErr when decoding frame %d",
             frame->decode_frame_number);
         break;
+#endif
 #ifndef HAVE_IOS
       case codecBadDataErr:    /* SW decoder on macOS uses a different code from the hardware one... */
 #endif
