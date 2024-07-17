@@ -87,7 +87,7 @@ typedef struct _GstTensor
 {
   GQuark id;
   gint num_dims;
-  int64_t *dims;
+  gsize *dims;
   GstTensorDataType data_type;
   gsize batch_size;
   GstBuffer *data;
