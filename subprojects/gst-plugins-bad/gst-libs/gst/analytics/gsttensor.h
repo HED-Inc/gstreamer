@@ -76,6 +76,7 @@ typedef enum _GstTensorDataType
  * @num_dims: number of tensor dimensions
  * @dims: tensor dimensions
  * @type: #GstTensorDataType of tensor data
+ * @batch_size: Model batch size
  * @data: #GstBuffer holding tensor data
  *
  * Hold tensor data
@@ -88,6 +89,7 @@ typedef struct _GstTensor
   gint num_dims;
   int64_t *dims;
   GstTensorDataType data_type;
+  gsize batch_size;
   GstBuffer *data;
 } GstTensor;
 
