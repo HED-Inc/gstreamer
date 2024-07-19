@@ -23,6 +23,7 @@
 #include "gstonnxclient.h"
 #include <cpu_provider_factory.h>
 #include <sstream>
+#include <gst/analytics/analytics.h>
 
 #define GST_CAT_DEFAULT onnx_inference_debug
 
@@ -332,7 +333,7 @@ GstOnnxClient::GstOnnxClient (GstElement *debug_parent):debug_parent(debug_paren
         gst_tensor_meta_get_info (),
         NULL);
     tmeta->num_tensors = num_tensors;
-    tmeta->tensor = (GstTensor *) g_malloc (num_tensors * sizeof (GstTensor));
+    tmeta->tensors = (GstTensor **) g_malloc (num_tensors * sizeof (GstTensor*));
     bool hasIds = outputIds.size () == num_tensors;
     for (size_t i = 0; i < num_tensors; i++) {
       Ort::Value outputTensor = std::move (outputs[i]);
@@ -340,14 +341,15 @@ GstOnnxClient::GstOnnxClient (GstElement *debug_parent):debug_parent(debug_paren
       ONNXTensorElementDataType tensorType =
           outputTensor.GetTensorTypeAndShapeInfo ().GetElementType ();
 
-      GstTensor *tensor = &tmeta->tensor[i];
+      auto tensorShape = outputTensor.GetTensorTypeAndShapeInfo ().GetShape ();
+      GstTensor *tensor = gst_tensor_alloc (tensorShape.size ());
+      tmeta->tensors[i] = tensor;
       if (hasIds)
         tensor->id = outputIds[i];
       else
-	tensor->id = 0;
-      auto tensorShape = outputTensor.GetTensorTypeAndShapeInfo ().GetShape ();
+      	tensor->id = 0;
+
       tensor->num_dims = tensorShape.size ();
-      tensor->dims = g_new (gsize, tensor->num_dims);
       tensor->batch_size = 1;
 
       for (size_t j = 0; j < tensorShape.size (); ++j)
