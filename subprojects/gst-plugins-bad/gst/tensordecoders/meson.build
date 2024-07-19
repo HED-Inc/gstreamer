@@ -1,4 +1,5 @@
 tensordecoders_sources = [
+  'gsttensordecoders.c',
   'gstssdobjectdetector.c'
 ]
 
