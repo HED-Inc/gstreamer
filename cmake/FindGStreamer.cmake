@@ -429,10 +429,8 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
 
     # Generate list of gio modules
     if (NOT G_IO_MODULES)
-        message(WARNING "G_IO_MODULES is not set, assuming OpenSSL as TLS backend.")
-        set (G_IO_MODULES openssl)
+        set(G_IO_MODULES)
     endif()
-
     list(TRANSFORM G_IO_MODULES
         PREPEND "gio"
         OUTPUT_VARIABLE G_IO_MODULES_LIBS
@@ -664,22 +662,24 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
     endif()
 
     # And, finally, set the GIO modules up
-    pkg_check_modules(PC_GStreamerGioModules REQUIRED ${G_IO_MODULES_LIBS})
-    add_library(GStreamer::gio_modules INTERFACE IMPORTED)
-    _gst_filter_missing_directories(PC_GStreamerGioModules_STATIC_INCLUDE_DIRS)
-    set_target_properties(
-        GStreamer::gio_modules
-        PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${PC_GStreamerGioModules_STATIC_INCLUDE_DIRS}"
-            INTERFACE_COMPILE_OPTIONS "${PC_GStreamerGioModules_STATIC_CFLAGS_OTHER}"
-            INTERFACE_LINK_OPTIONS "${PC_GStreamerGioModules_STATIC_LDFLAGS_OTHER}"
-    )
-    _gst_apply_link_libraries(PC_GStreamerGioModules_STATIC_LIBRARIES PC_GStreamerGioModules_STATIC_LIBRARY_DIRS GStreamer::gio_modules)
-    target_link_libraries(
-        GStreamerMobile
-        PRIVATE
+    if (G_IO_MODULES_LIBS)
+        pkg_check_modules(PC_GStreamerGioModules REQUIRED ${G_IO_MODULES_LIBS})
+        add_library(GStreamer::gio_modules INTERFACE IMPORTED)
+        _gst_filter_missing_directories(PC_GStreamerGioModules_STATIC_INCLUDE_DIRS)
+        set_target_properties(
             GStreamer::gio_modules
-    )
+            PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${PC_GStreamerGioModules_STATIC_INCLUDE_DIRS}"
+                INTERFACE_COMPILE_OPTIONS "${PC_GStreamerGioModules_STATIC_CFLAGS_OTHER}"
+                INTERFACE_LINK_OPTIONS "${PC_GStreamerGioModules_STATIC_LDFLAGS_OTHER}"
+        )
+        _gst_apply_link_libraries(PC_GStreamerGioModules_STATIC_LIBRARIES PC_GStreamerGioModules_STATIC_LIBRARY_DIRS GStreamer::gio_modules)
+        target_link_libraries(
+            GStreamerMobile
+            PRIVATE
+                GStreamer::gio_modules
+        )
+    endif()
     set(GStreamer_mobile_FOUND TRUE)
 endif()
 
