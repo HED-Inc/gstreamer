@@ -169,17 +169,25 @@ endif()
 # Path for the static GIO modules
 set(G_IO_MODULES_PATH "${GStreamer_ROOT}/lib/gio/modules")
 
+# Find libraries. This is meant to be used with static libraries
+# (hence the reprioritization) but I've added a fallback to shared libraries
+# and stub modules in case any are non-existent.
 function(_gst_find_library LOCAL_LIB GST_LOCAL_LIB)
     if (DEFINED ${GST_LOCAL_LIB})
         return()
     endif()
 
+    set(_gst_suffixes ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    set(_gst_prefixes ${CMAKE_FIND_LIBRARY_PREFIXES})
     if (APPLE)
-        set(_gst_names ${LOCAL_LIB}.a lib${LOCAL_LIB}.a ${LOCAL_LIB}.so lib${LOCAL_LIB}.so ${LOCAL_LIB}.dylib lib${LOCAL_LIB}.dylib ${LOCAL_LIB}.tbd lib${LOCAL_LIB}.tbd)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".dylib" ".so" ".tbd")
+        set(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
     elseif (UNIX)
-        set(_gst_names ${LOCAL_LIB}.a lib${LOCAL_LIB}.a ${LOCAL_LIB}.so lib${LOCAL_LIB}.so)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".so")
+        set(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
     else()
-        set(_gst_names ${LOCAL_LIB}.a lib${LOCAL_LIB}.a ${LOCAL_LIB}.lib lib${LOCAL_LIB}.lib)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
+        set(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
     endif()
 
     if ("${LOCAL_LIB}" IN_LIST _gst_IGNORED_SYSTEM_LIBRARIES)
@@ -196,6 +204,9 @@ function(_gst_find_library LOCAL_LIB GST_LOCAL_LIB)
             message(FATAL_ERROR "${LOCAL_LIB} was unexpectedly not found.")
         endif()
     endif()
+
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${_gst_suffixes})
+    set(CMAKE_FIND_LIBRARY_PREFIXES ${_gst_prefixes})
 endfunction()
 
 macro(_gst_apply_link_libraries PC_LIBRARIES PC_HINTS GST_TARGET)
