@@ -859,11 +859,15 @@ endif()
 
 # Perform final validation
 include(FindPackageHandleStandardArgs)
+set(_gst_handle_version_range)
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.19.0")
+    set(_gst_handle_version_range "HANDLE_VERSION_RANGE")
+endif()
 find_package_handle_standard_args(GStreamer
     REQUIRED_VARS
         GStreamer_LIBRARY
         GStreamer_INCLUDE_DIR
     VERSION_VAR GStreamer_VERSION
-    HANDLE_VERSION_RANGE
+    ${_gst_handle_version_range}
     HANDLE_COMPONENTS
 )
