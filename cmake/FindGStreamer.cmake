@@ -75,6 +75,9 @@ Setting the following variables is required, depending on the operating system:
 ``G_IO_MODULES``
   Set this to the GIO modules you need, additional to any GStreamer plugins. (Usually set to ``gnutls`` or ``openssl``)
 
+``GStreamer_EXTRA_DEPS``
+  Extra dependencies that will be included whenever linking against GStreamer.
+
 #]=======================================================================]
 
 if (GStreamer_FOUND)
@@ -166,6 +169,15 @@ if (WIN32)
 else()
     set(ENV{PKG_CONFIG_PATH} "${GStreamer_ROOT_DIR}/lib/pkgconfig:${GStreamer_ROOT_DIR}/lib/gstreamer-1.0/pkgconfig:${GStreamer_ROOT_DIR}/lib/gio/modules/pkgconfig")
 endif()
+
+# Set the list of extra dependencies
+if (NOT DEFINED GStreamer_EXTRA_DEPS)
+    set(GStreamer_EXTRA_DEPS)
+    if (DEFINED GSTREAMER_EXTRA_DEPS)
+        set(GStreamer_EXTRA_DEPS ${GSTREAMER_EXTRA_DEPS})
+    endif()
+endif()
+
 # Path for the static GIO modules
 set(G_IO_MODULES_PATH "${GStreamer_ROOT}/lib/gio/modules")
 
@@ -273,7 +285,7 @@ endmacro()
 
 # for setting the default GTlsDatabase
 if(mobile IN_LIST GStreamer_FIND_COMPONENTS)
-    list(APPEND GSTREAMER_EXTRA_DEPS gio-2.0)
+    list(APPEND GStreamer_EXTRA_DEPS gio-2.0)
 endif()
 
 # Prepare Android hotfixes for x264
@@ -290,12 +302,12 @@ endif()
 find_package(PkgConfig REQUIRED)
 
 # GStreamer's pkg-config modules are a MUST -- but we'll test them below
-pkg_check_modules(PC_GStreamer gstreamer-1.0 ${GSTREAMER_EXTRA_DEPS})
+pkg_check_modules(PC_GStreamer gstreamer-1.0 ${GStreamer_EXTRA_DEPS})
 # Simulate the list that'll be wholearchive'd.
 # Unfortunately, this uses an option only available with pkgconf.
 # set(_old_pkg_config_executable "${PKG_CONFIG_EXECUTABLE}")
 # set(PKG_CONFIG_EXECUTABLE ${PKG_CONFIG_EXECUTABLE} --maximum-traverse-depth=1)
-# pkg_check_modules(PC_GStreamer_NoDeps QUIET REQUIRED gstreamer-1.0 ${GSTREAMER_EXTRA_DEPS})
+# pkg_check_modules(PC_GStreamer_NoDeps QUIET REQUIRED gstreamer-1.0 ${GStreamer_EXTRA_DEPS})
 # set(PKG_CONFIG_EXECUTABLE "${_old_pkg_config_executable}")
 
 set(GStreamer_VERSION "${PC_GStreamer_VERSION}")
