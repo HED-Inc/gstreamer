@@ -235,6 +235,38 @@ function(_gst_filter_missing_directories GST_INCLUDE_DIRS)
     set(${GST_INCLUDE_DIRS} "${_gst_include_dirs}")
 endfunction()
 
+macro(_gst_apply_frameworks PC_STATIC_LDFLAGS_OTHER GST_TARGET)
+    if (APPLE)
+        # LDFLAGS_OTHER may include framework linkage. Because CMake
+        # iterates over arguments separated by spaces, it doesn't realise
+        # that those arguments must not be split.
+        set(new_ldflags)
+        set(assemble_framework FALSE)
+        foreach(_arg IN LISTS ${PC_STATIC_LDFLAGS_OTHER})
+            if (assemble_framework)
+                set(assemble_framework FALSE)
+                find_library(GST_${_arg}_LIB ${_arg} REQUIRED)
+                target_link_libraries(${GST_TARGET}
+                    INTERFACE
+                        "${GST_${_arg}_LIB}"
+                )
+            elseif (_arg STREQUAL "-framework")
+                set(assemble_framework TRUE)
+            else()
+                set(assemble_framework FALSE)
+                list(APPEND new_ldflags "${_arg}")
+            endif()
+        endforeach()
+        set_target_properties(${GST_TARGET} PROPERTIES
+            INTERFACE_LINK_OPTIONS "${new_ldflags}"
+        )
+    else()
+        set_target_properties(${TARGET} PROPERTIES
+            INTERFACE_LINK_OPTIONS "${${PC_STATIC_LDFLAGS_OTHER}}"
+        )
+    endif()
+endmacro()
+
 ################################
 #      Set up the targets      #
 ################################
@@ -308,35 +340,7 @@ if(PC_GStreamer_FOUND AND (NOT TARGET GStreamer::GStreamer))
             INTERFACE_COMPILE_OPTIONS "${PC_GStreamer_STATIC_CFLAGS_OTHER}"
             INTERFACE_INCLUDE_DIRECTORIES "${PC_GStreamer_STATIC_INCLUDE_DIRS}"
         )
-        if (APPLE)
-            # LDFLAGS_OTHER may include framework linkage. Because CMake
-            # iterates over arguments separated by spaces, it doesn't realise
-            # that those arguments must not be split.
-            set(new_ldflags)
-            set(assemble_framework FALSE)
-            foreach(_arg IN LISTS PC_GStreamer_STATIC_LDFLAGS_OTHER)
-                if (assemble_framework)
-                    set(assemble_framework FALSE)
-                    find_library(GST_${_arg}_LIB ${_arg} REQUIRED)
-                    target_link_libraries(GStreamer::GStreamer
-                        INTERFACE
-                            "${GST_${_arg}_LIB}"
-                    )
-                elseif (_arg STREQUAL "-framework")
-                    set(assemble_framework TRUE)
-                else()
-                    set(assemble_framework FALSE)
-                    list(APPEND new_ldflags "${_arg}")
-                endif()
-            endforeach()
-            set_target_properties(GStreamer::GStreamer PROPERTIES
-                INTERFACE_LINK_OPTIONS "${new_ldflags}"
-            )
-        else()
-            set_target_properties(GStreamer::GStreamer PROPERTIES
-                INTERFACE_LINK_OPTIONS "${PC_GStreamer_STATIC_LDFLAGS_OTHER}"
-            )
-        endif()
+        _gst_apply_frameworks(PC_GStreamer_STATIC_LDFLAGS_OTHER GStreamer::GStreamer)
     else()
         set_target_properties(GStreamer::GStreamer PROPERTIES
             INTERFACE_COMPILE_OPTIONS "${PC_GStreamer_CFLAGS_OTHER}"
@@ -755,35 +759,7 @@ foreach(_gst_PLUGIN IN LISTS GSTREAMER_PLUGINS)
         INTERFACE_INCLUDE_DIRECTORIES "${PC_GStreamer_${_gst_PLUGIN}_INCLUDE_DIRS}"
     )
     if (GStreamer_USE_STATIC_LIBS)
-        if (APPLE)
-            # LDFLAGS_OTHER may include framework linkage. Because CMake
-            # iterates over arguments separated by spaces, it doesn't realise
-            # that those arguments must not be split.
-            set(new_ldflags)
-            set(assemble_framework FALSE)
-            foreach(_arg IN LISTS PC_GStreamer_${_gst_PLUGIN}_STATIC_LDFLAGS_OTHER)
-                if (assemble_framework)
-                    set(assemble_framework FALSE)
-                    find_library(GST_${_arg}_LIB ${_arg} REQUIRED)
-                    target_link_libraries(GStreamer::${_gst_PLUGIN}
-                        INTERFACE
-                            "${GST_${_arg}_LIB}"
-                    )
-                elseif (_arg STREQUAL "-framework")
-                    set(assemble_framework TRUE)
-                else()
-                    set(assemble_framework FALSE)
-                    list(APPEND new_ldflags "${_arg}")
-                endif()
-            endforeach()
-            set_target_properties(GStreamer::${_gst_PLUGIN} PROPERTIES
-                INTERFACE_LINK_OPTIONS "${new_ldflags}"
-            )
-        else()
-            set_target_properties(GStreamer::${_gst_PLUGIN} PROPERTIES
-                INTERFACE_LINK_OPTIONS "${PC_GStreamer_${_gst_PLUGIN}_STATIC_LDFLAGS_OTHER}"
-            )
-        endif()
+        _gst_apply_frameworks(PC_GStreamer_${_gst_PLUGIN}_STATIC_LDFLAGS_OTHER GStreamer::${_gst_PLUGIN})
     else()
         set_target_properties(GStreamer::${_gst_PLUGIN} PROPERTIES
             INTERFACE_LINK_OPTIONS "${PC_GStreamer_${_gst_PLUGIN}_LDFLAGS_OTHER}"
@@ -839,35 +815,7 @@ foreach(_gst_PLUGIN IN LISTS GSTREAMER_APIS)
         INTERFACE_LINK_OPTIONS "${PC_GStreamer_${_gst_PLUGIN}_LDFLAGS_OTHER}"
     )
     if (GStreamer_USE_STATIC_LIBS)
-        if (APPLE)
-            # LDFLAGS_OTHER may include framework linkage. Because CMake
-            # iterates over arguments separated by spaces, it doesn't realise
-            # that those arguments must not be split.
-            set(new_ldflags)
-            set(assemble_framework FALSE)
-            foreach(_arg IN LISTS PC_GStreamer_${_gst_PLUGIN}_STATIC_LDFLAGS_OTHER)
-                if (assemble_framework)
-                    set(assemble_framework FALSE)
-                    find_library(GST_${_arg}_LIB ${_arg} REQUIRED)
-                    target_link_libraries(GStreamer::${_gst_PLUGIN}
-                        INTERFACE
-                            "${GST_${_arg}_LIB}"
-                    )
-                elseif (_arg STREQUAL "-framework")
-                    set(assemble_framework TRUE)
-                else()
-                    set(assemble_framework FALSE)
-                    list(APPEND new_ldflags "${_arg}")
-                endif()
-            endforeach()
-            set_target_properties(GStreamer::${_gst_PLUGIN} PROPERTIES
-                INTERFACE_LINK_OPTIONS "${new_ldflags}"
-            )
-        else()
-            set_target_properties(GStreamer::${_gst_PLUGIN} PROPERTIES
-                INTERFACE_LINK_OPTIONS "${PC_GStreamer_${_gst_PLUGIN}_STATIC_LDFLAGS_OTHER}"
-            )
-        endif()
+        _gst_apply_frameworks(PC_GStreamer_${_gst_PLUGIN}_STATIC_LDFLAGS_OTHER GStreamer::${_gst_PLUGIN})
     else()
         set_target_properties(GStreamer::${_gst_PLUGIN} PROPERTIES
             INTERFACE_LINK_OPTIONS "${PC_GStreamer_${_gst_PLUGIN}_LDFLAGS_OTHER}"
