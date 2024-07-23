@@ -477,12 +477,12 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
     # Generates a source file that declares and registers all the required plugins
     if (ANDROID)
         configure_file(
-            "${CMAKE_CURRENT_LIST_DIR}/gstreamer_android-1.0.c.in"
+            "${CMAKE_CURRENT_LIST_DIR}/GStreamer/gstreamer_android-1.0.c.in"
             "${GStreamer_Mobile_MODULE_NAME}.c"
         )
     else()
         configure_file(
-            "${CMAKE_CURRENT_LIST_DIR}/gst_ios_init.m.in"
+            "${CMAKE_CURRENT_LIST_DIR}/GStreamer/gst_ios_init.m.in"
             "${GStreamer_Mobile_MODULE_NAME}.m"
         )
     endif()
