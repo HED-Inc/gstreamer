@@ -336,12 +336,10 @@ if(PC_GStreamer_FOUND AND (NOT TARGET GStreamer::GStreamer))
         )
     endif()
 
-    if (ANDROID)
-        target_link_options(GStreamerAndroid INTERFACE -fuse-ld=lld)
-    endif()
+    add_library(GStreamer::deps INTERFACE IMPORTED)
 
     if (NOT GStreamer_USE_STATIC_LIBS)
-        set_target_properties(GStreamer::GStreamer PROPERTIES
+        set_target_properties(GStreamer::deps PROPERTIES
             INTERFACE_LINK_LIBRARIES "${PC_GStreamer_LINK_LIBRARIES}"
         )
         # We're done
@@ -362,27 +360,18 @@ if(PC_GStreamer_FOUND AND (NOT TARGET GStreamer::GStreamer))
             if (NOT ${GST_LOCAL_LIB})
                 _gst_find_library(${LOCAL_LIB} ${GST_LOCAL_LIB} ${PC_GStreamer_STATIC_LIBRARY_DIRS})
             endif()
-            if ("${${GST_LOCAL_LIB}}" IN_LIST _gst_IGNORED_SYSTEM_LIBRARIES)
-                target_link_libraries(GStreamer::GStreamer INTERFACE
-                    "${${GST_LOCAL_LIB}}"
-                )
-            elseif (MSVC)
-                target_link_libraries(GStreamer::GStreamer INTERFACE
-                    "/WHOLEARCHIVE:${${GST_LOCAL_LIB}}"
-                )
-            elseif(APPLE)
-                target_link_libraries(GStreamer::GStreamer INTERFACE
-                "-Wl,-force_load,${${GST_LOCAL_LIB}}"
+            target_link_libraries(GStreamer::GStreamer INTERFACE
+                "${${GST_LOCAL_LIB}}"
             )
-            else()
-                target_link_libraries(GStreamer::GStreamer INTERFACE
-                    "-Wl,--whole-archive,${${GST_LOCAL_LIB}},--no-whole-archive"
-                )
-            endif()
         endforeach()
 
-        _gst_apply_link_libraries(PC_GStreamer_STATIC_LIBRARIES PC_GStreamer_STATIC_LIBRARY_DIRS GStreamer::GStreamer)
+        _gst_apply_link_libraries(PC_GStreamer_STATIC_LIBRARIES PC_GStreamer_STATIC_LIBRARY_DIRS GStreamer::deps)
     endif()
+
+    target_link_libraries(GStreamer::GStreamer
+        INTERFACE
+            GStreamer::deps
+    )
 endif()
 
 # Now, let's set up targets for each of the components supplied
@@ -481,6 +470,7 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
             SHARED
                 "${GStreamer_Mobile_MODULE_NAME}.c"
         )
+        target_link_options(GStreamerMobile PRIVATE -fuse-ld=lld)
     else()
         add_library(GStreamerMobile SHARED)
         enable_language(OBJC OBJCXX)
@@ -526,14 +516,53 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
             SOVERSION ${PC_GStreamer_VERSION}
     )
 
-    # Compartmentalize the Android module...
+    # Handle all libraries, even those specified with -l:libfoo.a (srt)
+    # Due to the unavailability of pkgconf's `--maximum-traverse-depth`
+    # on stock pkg-config, I attempt to simulate it through the shared
+    # libraries listing.
+    # If pkgconf is available, replace all PC_GStreamer_ entries with
+    # PC_GStreamer_NoDeps and uncomment the code block above.
+    foreach(LOCAL_LIB IN LISTS PC_GStreamer_LIBRARIES)
+        # list(TRANSFORM REPLACE) is of no use here
+        # https://gitlab.kitware.com/cmake/cmake/-/issues/16899
+        if (LOCAL_LIB MATCHES "${_gst_SRT_REGEX_PATCH}")
+            string(REGEX REPLACE "${_gst_SRT_REGEX_PATCH}" "\\1" LOCAL_LIB "${LOCAL_LIB}")
+        endif()
+        string(MAKE_C_IDENTIFIER "_gst_${LOCAL_LIB}" GST_LOCAL_LIB)
+        if (NOT ${GST_LOCAL_LIB})
+            _gst_find_library(${LOCAL_LIB} ${GST_LOCAL_LIB} ${PC_GStreamer_STATIC_LIBRARY_DIRS})
+        endif()
+        if ("${${GST_LOCAL_LIB}}" IN_LIST _gst_IGNORED_SYSTEM_LIBRARIES)
+            target_link_libraries(GStreamerMobile PRIVATE
+                "${${GST_LOCAL_LIB}}"
+            )
+        elseif (MSVC)
+            target_link_libraries(GStreamerMobile PRIVATE
+                "/WHOLEARCHIVE:${${GST_LOCAL_LIB}}"
+            )
+        elseif(APPLE)
+            target_link_libraries(GStreamerMobile PRIVATE
+                "-Wl,-force_load,${${GST_LOCAL_LIB}}"
+            )
+        else()
+            target_link_libraries(GStreamerMobile PRIVATE
+                "-Wl,--whole-archive,${${GST_LOCAL_LIB}},--no-whole-archive"
+            )
+        endif()
+    endforeach()
+
     target_link_libraries(
         GStreamerMobile
         PRIVATE
-            GStreamer::GStreamer
+            GStreamer::deps
     )
 
-    # But allow downstream consumers to call GStreamer up
+    target_link_options(
+        GStreamerMobile
+        INTERFACE
+            $<TARGET_PROPERTY:GStreamer::GStreamer,INTERFACE_LINK_OPTIONS>
+    )
+
     target_include_directories(
         GStreamerMobile
         INTERFACE
