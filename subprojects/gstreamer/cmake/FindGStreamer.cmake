@@ -209,6 +209,7 @@ function(_gst_find_library LOCAL_LIB GST_LOCAL_LIB)
             ${LOCAL_LIB}
             HINTS ${ARGN}
             NO_DEFAULT_PATH
+            NO_CMAKE_FIND_ROOT_PATH
             REQUIRED
         )
         set(${GST_LOCAL_LIB} "${${GST_LOCAL_LIB}}" PARENT_SCOPE)
@@ -313,17 +314,23 @@ pkg_check_modules(PC_GStreamer gstreamer-1.0 ${GStreamer_EXTRA_DEPS})
 set(GStreamer_VERSION "${PC_GStreamer_VERSION}")
 
 # Test validity of the paths
+# NOTE: only paths that must be considered are those provided by pkg-config
+# NOTE 2: also exclude sysroots
 find_path(GStreamer_INCLUDE_DIR
     NAMES gst/gstversion.h
     PATHS ${PC_GStreamer_INCLUDE_DIRS}
     PATH_SUFFIXES gstreamer-1.0
     NO_DEFAULT_PATH
+    NO_CMAKE_FIND_ROOT_PATH
+    REQUIRED
 )
 
 find_library(GStreamer_LIBRARY
     NAMES gstreamer-1.0
     PATHS ${PC_GStreamer_LIBRARY_DIRS}
     NO_DEFAULT_PATH
+    NO_CMAKE_FIND_ROOT_PATH
+    REQUIRED
 )
 
 # Android: Ignore these libraries when constructing the IMPORTED_LOCATION
