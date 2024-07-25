@@ -1116,6 +1116,12 @@ gst_svtav1enc_parse_parameters_string (GstSvtAv1Enc * svtav1enc)
   g_strfreev (key_values);
 }
 
+/**
+ * plugin-svtav1:
+ *
+ * Since: 1.24
+ */
+
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
