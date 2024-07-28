@@ -662,6 +662,9 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
             add_custom_target(
                 ${COPYJAVASOURCE_TGT}
                 COMMAND
+                    "${CMAKE_COMMAND}" -E make_directory
+                    "${GStreamer_JAVA_SRC_DIR}/org/freedesktop/gstreamer/"
+                COMMAND
                     "${CMAKE_COMMAND}" -E copy
                     "${GStreamer_NDK_BUILD_PATH}/${LOCAL_FILE}"
                     "${GStreamer_JAVA_SRC_DIR}/org/freedesktop/gstreamer/"
@@ -683,6 +686,9 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
 
         add_custom_target(
             enable_includes_in_gstreamer_java
+            COMMAND
+                "${CMAKE_COMMAND}" -E make_directory
+                "${GStreamer_JAVA_SRC_DIR}/org/freedesktop/gstreamer/"
             COMMAND
                 "${CMAKE_COMMAND}" -E copy
                 "${CMAKE_CURRENT_BINARY_DIR}/GStreamer.java"
@@ -720,11 +726,16 @@ if(PC_GStreamer_FOUND AND (fonts IN_LIST GStreamer_FIND_COMPONENTS))
     if (ANDROID AND (NOT TARGET copyfontsres_${ANDROID_ABI}))
         add_custom_target(
             copyfontsres_${ANDROID_ABI}
-            ${CMAKE_COMMAND} -E copy
-                "${CMAKE_CURRENT_LIST_DIR}/fontconfig/fonts/Ubuntu-R.ttf"
+            COMMAND
+                "${CMAKE_COMMAND}" -E make_directory
                 "${GStreamer_ASSETS_DIR}/fontconfig/fonts/truetype/"
-            COMMAND ${CMAKE_COMMAND} -E copy
-                "${CMAKE_CURRENT_LIST_DIR}/fontconfig/fonts.conf"
+            COMMAND
+                "${CMAKE_COMMAND}" -E copy
+                "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts/Ubuntu-R.ttf"
+                "${GStreamer_ASSETS_DIR}/fontconfig/fonts/truetype/"
+            COMMAND
+                "${CMAKE_COMMAND}" -E copy
+                "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts.conf"
                 "${GStreamer_ASSETS_DIR}/fontconfig/"
             BYPRODUCTS
                 "${GStreamer_ASSETS_DIR}/fontconfig/fonts/truetype/Ubuntu-R.ttf"
@@ -735,8 +746,10 @@ if(PC_GStreamer_FOUND AND (fonts IN_LIST GStreamer_FIND_COMPONENTS))
             add_dependencies(GStreamerMobile copyfontsres_${ANDROID_ABI})
         endif()
     elseif(IOS)
-        list(APPEND GSTREAMER_RESOURCES "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts.conf")
-        list(APPEND GSTREAMER_RESOURCES "${GStreamer_ASSETS_DIR}/fontconfig/fonts/truetype/Ubuntu-R.ttf")
+        list(APPEND GSTREAMER_RESOURCES 
+            "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts.conf"
+            "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts/Ubuntu-R.ttf"
+        )
     endif()
 endif()
 
@@ -744,7 +757,11 @@ if(PC_GStreamer_FOUND AND (ca_certificates IN_LIST GStreamer_FIND_COMPONENTS))
     if (ANDROID AND (NOT TARGET copycacertificatesres_${ANDROID_ABI}))
         add_custom_target(
             copycacertificatesres_${ANDROID_ABI}
-            ${CMAKE_COMMAND} -E copy
+            COMMAND
+                "${CMAKE_COMMAND}" -E make_directory
+                "${GStreamer_ASSETS_DIR}/ssl/certs/"
+            COMMAND
+                "${CMAKE_COMMAND}" -E copy
                 "${GStreamer_ROOT_DIR}/etc/ssl/certs/ca-certificates.crt"
                 "${GStreamer_ASSETS_DIR}/ssl/certs/"
             BYPRODUCTS "${GStreamer_ASSETS_DIR}/ssl/certs/ca-certificates.crt"
