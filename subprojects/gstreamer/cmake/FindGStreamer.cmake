@@ -5,7 +5,7 @@
 FindGStreamer
 -------
 
-Finds the GStreamer library.
+Finds the GStreamer library. Requires ``pkg-config`` to be installed.
 
 Configuration
 ^^^^^^^^^^^^^
@@ -76,7 +76,7 @@ Setting the following variables is required, depending on the operating system:
   Set this to the GIO modules you need, additional to any GStreamer plugins. (Usually set to ``gnutls`` or ``openssl``)
 
 ``GStreamer_EXTRA_DEPS``
-  Extra dependencies that will be included whenever linking against GStreamer.
+  pkg-config names of the extra dependencies that will be included whenever linking against GStreamer.
 
 #]=======================================================================]
 
