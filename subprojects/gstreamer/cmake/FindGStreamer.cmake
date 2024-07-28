@@ -179,7 +179,7 @@ if (NOT DEFINED GStreamer_EXTRA_DEPS)
 endif()
 
 # Path for the static GIO modules
-set(G_IO_MODULES_PATH "${GStreamer_ROOT}/lib/gio/modules")
+set(G_IO_MODULES_PATH "${GStreamer_ROOT_DIR}/lib/gio/modules")
 
 # Find libraries. This is meant to be used with static libraries
 # (hence the reprioritization) but I've added a fallback to shared libraries
@@ -722,17 +722,8 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
 
     # And, finally, set the GIO modules up
     if (G_IO_MODULES_LIBS)
-        pkg_check_modules(PC_GStreamerGioModules REQUIRED ${G_IO_MODULES_LIBS})
         add_library(GStreamer::gio_modules INTERFACE IMPORTED)
-        _gst_filter_missing_directories(PC_GStreamerGioModules_STATIC_INCLUDE_DIRS)
-        set_target_properties(
-            GStreamer::gio_modules
-            PROPERTIES
-                INTERFACE_INCLUDE_DIRECTORIES "${PC_GStreamerGioModules_STATIC_INCLUDE_DIRS}"
-                INTERFACE_COMPILE_OPTIONS "${PC_GStreamerGioModules_STATIC_CFLAGS_OTHER}"
-                INTERFACE_LINK_OPTIONS "${PC_GStreamerGioModules_STATIC_LDFLAGS_OTHER}"
-        )
-        _gst_apply_link_libraries(OFF PC_GStreamerGioModules_STATIC_LIBRARIES PC_GStreamerGioModules_STATIC_LIBRARY_DIRS GStreamer::gio_modules)
+        _gst_apply_link_libraries(OFF G_IO_MODULES_LIBS G_IO_MODULES_PATH GStreamer::gio_modules)
         target_link_libraries(
             GStreamerMobile
             PRIVATE
