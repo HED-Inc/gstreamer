@@ -222,7 +222,12 @@ function(_gst_find_library LOCAL_LIB GST_LOCAL_LIB)
     set(CMAKE_FIND_LIBRARY_PREFIXES ${_gst_prefixes})
 endfunction()
 
-macro(_gst_apply_link_libraries PC_LIBRARIES PC_HINTS GST_TARGET)
+macro(_gst_apply_link_libraries HIDE PC_LIBRARIES PC_HINTS GST_TARGET)
+    if (APPLE AND ${HIDE})
+        target_link_directories(${GST_TARGET} INTERFACE
+            ${${PC_HINTS}}
+        )
+    endif()
     foreach(LOCAL_LIB IN LISTS ${PC_LIBRARIES})
         if (LOCAL_LIB MATCHES "${_gst_SRT_REGEX_PATCH}")
             string(REGEX REPLACE "${_gst_SRT_REGEX_PATCH}" "\\1" LOCAL_LIB "${LOCAL_LIB}")
@@ -231,8 +236,21 @@ macro(_gst_apply_link_libraries PC_LIBRARIES PC_HINTS GST_TARGET)
         if (NOT ${GST_LOCAL_LIB})
             _gst_find_library(${LOCAL_LIB} ${GST_LOCAL_LIB} ${${PC_HINTS}})
         endif()
-        target_link_libraries(${GST_TARGET} INTERFACE
-            ${${GST_LOCAL_LIB}})
+        if ("${${GST_LOCAL_LIB}}" IN_LIST _gst_IGNORED_SYSTEM_LIBRARIES)
+            target_link_libraries(${GST_TARGET} INTERFACE
+                ${${GST_LOCAL_LIB}})
+        elseif (APPLE AND ${HIDE})
+            set(LOCAL_FILE)
+            get_filename_component(LOCAL_FILE ${${GST_LOCAL_LIB}} NAME)
+            target_link_libraries(${GST_TARGET} INTERFACE
+                "-hidden-l${LOCAL_FILE}")
+        elseif((UNIX OR ANDROID) AND ${HIDE})
+            target_link_libraries(${GST_TARGET} INTERFACE
+                -Wl,--exclude-libs,${${GST_LOCAL_LIB}})
+        else()
+            target_link_libraries(${GST_TARGET} INTERFACE
+                ${${GST_LOCAL_LIB}})
+        endif()
     endforeach()
 endmacro()
 
@@ -409,7 +427,7 @@ if(PC_GStreamer_FOUND AND (NOT TARGET GStreamer::GStreamer))
             )
         endforeach()
 
-        _gst_apply_link_libraries(PC_GStreamer_STATIC_LIBRARIES PC_GStreamer_STATIC_LIBRARY_DIRS GStreamer::deps)
+        _gst_apply_link_libraries(ON PC_GStreamer_STATIC_LIBRARIES PC_GStreamer_STATIC_LIBRARY_DIRS GStreamer::deps)
     endif()
 
     target_link_libraries(GStreamer::GStreamer
@@ -714,7 +732,7 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
                 INTERFACE_COMPILE_OPTIONS "${PC_GStreamerGioModules_STATIC_CFLAGS_OTHER}"
                 INTERFACE_LINK_OPTIONS "${PC_GStreamerGioModules_STATIC_LDFLAGS_OTHER}"
         )
-        _gst_apply_link_libraries(PC_GStreamerGioModules_STATIC_LIBRARIES PC_GStreamerGioModules_STATIC_LIBRARY_DIRS GStreamer::gio_modules)
+        _gst_apply_link_libraries(OFF PC_GStreamerGioModules_STATIC_LIBRARIES PC_GStreamerGioModules_STATIC_LIBRARY_DIRS GStreamer::gio_modules)
         target_link_libraries(
             GStreamerMobile
             PRIVATE
@@ -818,7 +836,7 @@ foreach(_gst_PLUGIN IN LISTS GSTREAMER_PLUGINS)
     endif()
 
     # Handle all libraries, even those specified with -l:libfoo.a (srt)
-    _gst_apply_link_libraries(PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARIES PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARY_DIRS GStreamer::${_gst_PLUGIN})
+    _gst_apply_link_libraries(OFF PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARIES PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARY_DIRS GStreamer::${_gst_PLUGIN})
 
     if (TARGET GStreamerMobile)
         target_link_libraries(
@@ -874,7 +892,7 @@ foreach(_gst_PLUGIN IN LISTS GSTREAMER_APIS)
     endif()
 
     # Handle all libraries, even those specified with -l:libfoo.a (srt)
-    _gst_apply_link_libraries(PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARIES PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARY_DIRS GStreamer::${_gst_PLUGIN})
+    _gst_apply_link_libraries(OFF PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARIES PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARY_DIRS GStreamer::${_gst_PLUGIN})
 
     if (TARGET GStreamerMobile)
         target_link_libraries(
