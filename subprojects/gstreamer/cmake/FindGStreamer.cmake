@@ -26,7 +26,7 @@ This module defines the following :prop_tgt:`IMPORTED` targets:
 This module defines the following :prop_tgt:`SHARED` targets:
 
 ``GStreamer::mobile``
-  A target that will build the shared library consisting of GStreamer plus all the selected plugin components.
+  A target that will build the shared library consisting of GStreamer plus all the selected plugin components. (Android/iOS only)
 
 Result Variables
 ^^^^^^^^^^^^^^^^
@@ -64,13 +64,13 @@ Setting the following variables is required, depending on the operating system:
   Set to ON to force the use of the static libraries. Default is OFF.
 
 ``GStreamer_ASSETS_DIR``
-  Target directory for deploying Android assets to.
+  Target directory for deploying assets to. (Android/iOS only)
 
 ``GStreamer_JAVA_SRC_DIR``
-  Target directory for deploying the selected plugins' Android Java classfiles to.
+  Target directory for deploying the selected plugins' Java classfiles to. (Android only)
 
 ``GStreamer_Mobile_MODULE_NAME``
-  Chosen name for the GStreamer::mobile shared library e.g. ``gstreamer_android``.
+  Name for the GStreamer::mobile shared library. Default is ``gstreamer_android`` (Android) or ``gstreamer_mobile`` (iOS).
 
 ``G_IO_MODULES``
   Set this to the GIO modules you need, additional to any GStreamer plugins. (Usually set to ``gnutls`` or ``openssl``)
@@ -756,7 +756,7 @@ if(PC_GStreamer_FOUND AND (fonts IN_LIST GStreamer_FIND_COMPONENTS))
         if (TARGET GStreamerMobile)
             add_dependencies(GStreamerMobile copyfontsres_${ANDROID_ABI})
         endif()
-    elseif(IOS)
+    elseif(APPLE)
         list(APPEND GSTREAMER_RESOURCES 
             "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts.conf"
             "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts/Ubuntu-R.ttf"
@@ -781,7 +781,7 @@ if(PC_GStreamer_FOUND AND (ca_certificates IN_LIST GStreamer_FIND_COMPONENTS))
         if (TARGET GStreamerMobile)
             add_dependencies(GStreamerMobile copycacertificatesres_${ANDROID_ABI})
         endif()
-    elseif (IOS)
+    elseif (APPLE)
         list(APPEND GSTREAMER_RESOURCES "${GStreamer_ROOT_DIR}/etc/ssl/certs/ca-certificates.crt")
     endif()
 endif()
