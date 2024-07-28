@@ -761,6 +761,8 @@ if(PC_GStreamer_FOUND AND (fonts IN_LIST GStreamer_FIND_COMPONENTS))
             "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts.conf"
             "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts/Ubuntu-R.ttf"
         )
+    else()
+        message(FATAL_ERROR "No fonts assets available for this operating system.")
     endif()
 endif()
 
@@ -783,6 +785,8 @@ if(PC_GStreamer_FOUND AND (ca_certificates IN_LIST GStreamer_FIND_COMPONENTS))
         endif()
     elseif (APPLE)
         list(APPEND GSTREAMER_RESOURCES "${GStreamer_ROOT_DIR}/etc/ssl/certs/ca-certificates.crt")
+    else()
+        message(FATAL_ERROR "No certificate bundle available for this operating system.")
     endif()
 endif()
 
