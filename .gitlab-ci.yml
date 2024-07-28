@@ -768,7 +768,8 @@ gstreamer-full-minimal static build:
   - ls -l build/libgstreamer-full-1.0.so
 
 # v4l2-stateless-decoders tests
-fluster v4l2-stateless on visl:
+# Disabled for now due to failures with qemu on fedora 40
+.fluster v4l2-stateless on visl:
   extends: 'gstreamer-full static build'
   stage: 'test'
   variables:
