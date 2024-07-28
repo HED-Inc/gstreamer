@@ -289,6 +289,16 @@ if(mobile IN_LIST GStreamer_FIND_COMPONENTS)
     list(APPEND GStreamer_EXTRA_DEPS gio-2.0)
 endif()
 
+if (ANDROID)
+    if (NOT (ca_certificates IN_LIST GStreamer_FIND_COMPONENTS))
+        list(APPEND GStreamer_FIND_COMPONENTS ca_certificates)
+    endif()
+
+    if (NOT (fonts IN_LIST GStreamer_FIND_COMPONENTS))
+        list(APPEND GStreamer_FIND_COMPONENTS fonts)
+    endif()
+endif()
+
 # Prepare Android hotfixes for x264
 if(ANDROID_ABI STREQUAL "armeabi")
     set(NEEDS_NOTEXT_FIX TRUE)
@@ -663,10 +673,10 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
 
         # FIXME: Make GStreamer.java configure friendly
         file(READ "${GStreamer_NDK_BUILD_PATH}/GStreamer.java" JAVA_INPUT)
-        if(GSTREAMER_INCLUDE_FONTS)
+        if(ca_certificates IN_LIST GStreamer_FIND_COMPONENTS)
             string(REPLACE "//copyCaCertificates" "copyCaCertificates" JAVA_INPUT "${JAVA_INPUT}")
         endif()
-        if(GSTREAMER_INCLUDE_CA_CERTIFICATES)
+        if(fonts IN_LIST GStreamer_FIND_COMPONENTS)
             string(REPLACE "//copyFonts" "copyFonts" JAVA_INPUT "${JAVA_INPUT}")
         endif()
         file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/GStreamer.java" "${JAVA_INPUT}")
