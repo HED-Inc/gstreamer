@@ -58,7 +58,7 @@ Configuration Variables
 Setting the following variables is required, depending on the operating system:
 
 ``GStreamer_ROOT_DIR``
-  Installation prefix of the GStreamer SDK .
+  Installation prefix of the GStreamer SDK.
 
 ``GStreamer_USE_STATIC_LIBS`
   Set to ON to force the use of the static libraries. Default is OFF.
