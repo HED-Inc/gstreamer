@@ -290,6 +290,8 @@ if(mobile IN_LIST GStreamer_FIND_COMPONENTS)
 endif()
 
 if (ANDROID)
+    list(APPEND GStreamer_EXTRA_DEPS zlib)
+
     if (NOT (ca_certificates IN_LIST GStreamer_FIND_COMPONENTS))
         list(APPEND GStreamer_FIND_COMPONENTS ca_certificates)
     endif()
