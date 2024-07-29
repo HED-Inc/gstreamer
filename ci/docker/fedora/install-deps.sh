@@ -57,6 +57,7 @@ debug_packages=$(rpm -qa | grep -v -i \
     -e bluez \
     -e boost \
     -e ccache \
+    -e ceph \
     -e clang \
     -e cmake \
     -e colord \
@@ -97,6 +98,7 @@ debug_packages=$(rpm -qa | grep -v -i \
     -e qemu \
     -e qt5 \
     -e qt6 \
+    -e sequoia \
     -e spice \
     -e sqlite \
     -e suitesparse \
