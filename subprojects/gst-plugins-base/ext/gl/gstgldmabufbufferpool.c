@@ -30,14 +30,14 @@
 #include <gst/gl/gstglmemory.h>
 #include <gst/gl/gstglsyncmeta.h>
 #include <gst/gl/egl/gsteglimage.h>
-
-#define GST_GL_DMABUF_EGLIMAGE "gst.gl.dmabuf.eglimage"
+#include <gst/gl/egl/gsteglimagecache.h>
 
 typedef struct _GstGLDMABufBufferPoolPrivate
 {
   GstBufferPool *dmabuf_pool;
   GstGLMemoryAllocator *allocator;
   GstGLVideoAllocationParams *glparams;
+  GstEGLImageCache *eglimage_cache;
 
   gboolean add_glsyncmeta;
 } GstGLDMABufBufferPoolPrivate;
@@ -166,6 +166,11 @@ gst_gl_dmabuf_buffer_pool_start (GstBufferPool * pool)
     return FALSE;
   }
 
+  if (self->priv->eglimage_cache) {
+    gst_egl_image_cache_unref (self->priv->eglimage_cache);
+  }
+  self->priv->eglimage_cache = gst_egl_image_cache_new ();
+
   return GST_BUFFER_POOL_CLASS (parent_class)->start (pool);
 }
 
@@ -176,6 +181,10 @@ gst_gl_dmabuf_buffer_pool_stop (GstBufferPool * pool)
 
   if (!gst_buffer_pool_set_active (self->priv->dmabuf_pool, FALSE)) {
     return FALSE;
+  }
+
+  if (self->priv->eglimage_cache) {
+    gst_egl_image_cache_unref (self->priv->eglimage_cache);
   }
 
   return GST_BUFFER_POOL_CLASS (parent_class)->stop (pool);
@@ -247,6 +256,8 @@ gst_gl_dmabuf_buffer_pool_acquire_buffer (GstBufferPool * pool,
   GstFlowReturn ret;
   GstBuffer *dmabuf;
   GstBuffer *buf;
+  GstMemory *previous_mem = NULL;
+  GstEGLImageCacheEntry *cache_entry = NULL;
   WrapDMABufData data;
   guint i;
 
@@ -264,8 +275,22 @@ gst_gl_dmabuf_buffer_pool_acquire_buffer (GstBufferPool * pool,
 
     g_assert (gst_is_dmabuf_memory (dmabufmem));
 
+    /*
+     * Check if an EGLImage is cached. Remember the previous memory and cache
+     * entry to avoid repeated lookups if all dmabufmem point to the same
+     * memory.
+     */
+    data.eglimage[i] = gst_egl_image_cache_lookup (self->priv->eglimage_cache,
+        dmabufmem, i, &previous_mem, &cache_entry);
+    if (data.eglimage[i])
+      continue;
+
+    /* otherwise create one and cache it */
     data.eglimage[i] = gst_egl_image_from_dmabuf (glpool->context,
         gst_dmabuf_memory_get_fd (dmabufmem), v_info, i, 0);
+
+    gst_egl_image_cache_store (self->priv->eglimage_cache, dmabufmem, i,
+        data.eglimage[i], &cache_entry);
   }
 
   gst_gl_context_thread_add (glpool->context, _wrap_dmabuf_eglimage, &data);
@@ -286,10 +311,6 @@ gst_gl_dmabuf_buffer_pool_acquire_buffer (GstBufferPool * pool,
 
     /* Unset wrapped flag, we want the texture be freed with the memory. */
     GST_GL_MEMORY_CAST (mem)->texture_wrapped = FALSE;
-
-    gst_mini_object_set_qdata (GST_MINI_OBJECT (mem),
-        g_quark_from_static_string (GST_GL_DMABUF_EGLIMAGE),
-        data.eglimage[i], (GDestroyNotify) gst_egl_image_unref);
   }
 
   gst_buffer_add_parent_buffer_meta (buf, dmabuf);
