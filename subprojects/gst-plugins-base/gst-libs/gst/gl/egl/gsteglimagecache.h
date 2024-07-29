@@ -1,0 +1,67 @@
+/*
+ * GStreamer
+ * Copyright (C) 2024 Pengutronix, Philipp Zabel <graphics@pengutronix.de>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU Library General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
+ * Boston, MA 02110-1301, USA.
+ */
+
+#ifndef _GST_EGL_IMAGECACHE_H_
+#define _GST_EGL_IMAGECACHE_H_
+
+G_BEGIN_DECLS
+
+/**
+ * GstEGLImageCacheEntry:
+ *
+ * Opaque #GstEGLImageCacheEntry struct.
+ */
+typedef struct _GstEGLImageCacheEntry
+{
+  /*< private >*/
+  GstEGLImage *eglimage[GST_VIDEO_MAX_PLANES];
+} GstEGLImageCacheEntry;
+
+/**
+ * GstEGLImageCache:
+ *
+ * Opaque #GstEGLImageCache struct.
+ */
+typedef struct _GstEGLImageCache
+{
+  /*< private >*/
+  gint ref_count;
+  GHashTable *hash_table;       /* for GstMemory -> GstEGLImageCacheEntry lookup */
+  GMutex lock;                  /* protects hash_table */
+} GstEGLImageCache;
+
+GST_GL_API
+GstEGLImageCache * gst_egl_image_cache_ref (GstEGLImageCache * cache);
+
+GST_GL_API
+void gst_egl_image_cache_unref (GstEGLImageCache * cache);
+
+GST_GL_API
+GstEGLImage * gst_egl_image_cache_lookup (GstEGLImageCache * cache, GstMemory * mem, gint plane, GstMemory ** previous_mem, GstEGLImageCacheEntry ** cache_entry);
+
+GST_GL_API
+void gst_egl_image_cache_store (GstEGLImageCache * cache, GstMemory * mem, gint plane, GstEGLImage * eglimage, GstEGLImageCacheEntry ** cache_entry);
+
+GST_GL_API
+GstEGLImageCache * gst_egl_image_cache_new (void);
+
+G_END_DECLS
+
+#endif /* _GST_EGL_IMAGECACHE_H_ */
