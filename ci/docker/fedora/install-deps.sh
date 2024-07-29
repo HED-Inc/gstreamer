@@ -41,6 +41,9 @@ pip3 install git+https://github.com/hotdoc/hotdoc.git@421ff10b65e4767ac6982cd8dd
 # Remove gst-devel packages installed by builddep above
 dnf remove -y "gstreamer1*devel"
 
+# We use rustup to install the rust toolchain, we don't need fedora's
+dnf remove -y rust cargo
+
 dnf install -y glib2-doc gdk-pixbuf2-devel gtk3-devel-docs gtk4-devel-docs libsoup-doc
 
 # Install most debug symbols, except the big ones from things we use
