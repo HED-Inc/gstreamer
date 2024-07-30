@@ -363,47 +363,52 @@ gst_video_time_code_nsec_since_daily_jam (const GstVideoTimeCode * tc)
 guint64
 gst_video_time_code_frames_since_daily_jam (const GstVideoTimeCode * tc)
 {
-  guint ff_nom;
+  gint fps_n = tc->config.fps_n, fps_d = tc->config.fps_d;
+  guint64 ff_nom;
   gdouble ff;
 
   g_return_val_if_fail (gst_video_time_code_is_valid (tc), -1);
 
-  gst_util_fraction_to_double (tc->config.fps_n, tc->config.fps_d, &ff);
-  if (tc->config.fps_d == 1001) {
-    ff_nom = tc->config.fps_n / 1000;
-  } else {
-    ff_nom = ff;
-  }
-  if (tc->config.flags & GST_VIDEO_TIME_CODE_FLAGS_DROP_FRAME) {
-    /* these need to be truncated to integer: side effect, code looks cleaner
-     * */
-    guint ff_minutes = 60 * ff;
-    guint ff_hours = 3600 * ff;
-    /* for 30000/1001 we drop the first 2 frames per minute, for 60000/1001 we
-     * drop the first 4 : so we use this number */
-    guint dropframe_multiplier;
+  gst_util_fraction_to_double (fps_n, fps_d, &ff);
+  ff_nom = fps_d == 1001 ? fps_n / 1000.0 : ff;
 
-    if (tc->config.fps_n == 30000) {
-      dropframe_multiplier = 2;
-    } else if (tc->config.fps_n == 60000) {
-      dropframe_multiplier = 4;
+  if (tc->config.flags & GST_VIDEO_TIME_CODE_FLAGS_DROP_FRAME) {
+    /* these need to be truncated to integer: side effect, code looks cleaner */
+    guint64 ff_hour = 3600 * ff;        /* frames per hour, accurate */
+    guint64 ff_min = 60 * ff;   /* frames in dropping minutes */
+    guint64 tens_minutes = tc->minutes / 10;
+    guint64 drop_frames;
+
+    /* for drop frame timecodes, we drop the first X frames each minute except
+     * every tenth, i.e. the last 9 out of every 10 minutes start with n_frames
+     * at X.
+     *
+     * since ff_min doesn't account for the undropped frames, we need to add
+     * X frames for every ten minutes that passed, within an hour */
+    if (fps_n == 30000) {
+      drop_frames = 2;          /* for 29.97, X = 2 */
+    } else if (fps_n == 60000) {
+      drop_frames = 4;          /* for 59.94, X = 4 */
+    } else if (fps_n == 120000) {
+      drop_frames = 8;          /* for 119.88, X = 8 */
     } else {
       /* already checked by gst_video_time_code_is_valid() */
       g_assert_not_reached ();
     }
 
-    return tc->frames + (ff_nom * tc->seconds) +
-        (ff_minutes * tc->minutes) +
-        dropframe_multiplier * ((gint) (tc->minutes / 10)) +
-        (ff_hours * tc->hours);
-  } else if (tc->config.fps_d > tc->config.fps_n) {
-    return gst_util_uint64_scale (tc->seconds + (60 * (tc->minutes +
-                (60 * tc->hours))), tc->config.fps_n, tc->config.fps_d);
+    return tc->frames + ff_nom * tc->seconds +
+        ff_min * tc->minutes + drop_frames * tens_minutes + ff_hour * tc->hours;
   } else {
-    return tc->frames + (ff_nom * (tc->seconds + (60 * (tc->minutes +
-                    (60 * tc->hours)))));
-  }
+    /* This allows for better readability than putting G_GUINT64_CONSTANT(60)
+     * into a long calculation line */
+    const guint64 sixty = 60;
+    guint64 secs = tc->seconds + (sixty * (tc->minutes + (sixty * tc->hours)));
 
+    if (fps_d > fps_n)
+      return gst_util_uint64_scale_int_ceil (secs, fps_n, fps_d);
+    else
+      return tc->frames + gst_util_uint64_scale_int (secs, fps_n, fps_d);
+  }
 }
 
 /**
