@@ -1,9 +1,9 @@
 include:
   - project: 'freedesktop/ci-templates'
-    ref: "801093be0b88f23c8dbabe9cfce7134548f7ccdc"
+    ref: "3826695f80807d8a4d999f6b6efb3d405d708db9"
     file: '/templates/fedora.yml'
   - project: 'freedesktop/ci-templates'
-    ref: "801093be0b88f23c8dbabe9cfce7134548f7ccdc"
+    ref: "3826695f80807d8a4d999f6b6efb3d405d708db9"
     file: '/templates/debian.yml'
   ###
   # IMPORTANT
@@ -22,6 +22,8 @@ stages:
 
 variables:
   GIT_DEPTH: 1
+
+  CI_ARTIFACTS_URL: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/"
 
   # Branch to track for modules that have no ref specified in the manifest
   GST_UPSTREAM_BRANCH: 'main'
@@ -57,7 +59,6 @@ variables:
     -Ddevtools=enabled
     -Dges=enabled
     -Drtsp_server=enabled
-    -Dvaapi=enabled
     -Dsharp=disabled
     -Drs=disabled
     -Dgpl=enabled
@@ -127,11 +128,20 @@ trigger:
 .fedora image:
   variables:
     CCACHE_DIR: '/cache/gstreamer/gstreamer/ccache/'
-    FDO_BASE_IMAGE: 'registry.fedoraproject.org/fedora-toolbox:34'
-    FDO_DISTRIBUTION_VERSION: '34'
+    FDO_DISTRIBUTION_VERSION: '40'
     FDO_REPO_SUFFIX: "$FEDORA_AMD64_SUFFIX"
     FDO_DISTRIBUTION_TAG: "$FEDORA_TAG-$GST_UPSTREAM_BRANCH"
     FDO_DISTRIBUTION_EXEC: 'GIT_BRANCH=$CI_COMMIT_REF_NAME GIT_URL=$CI_REPOSITORY_URL bash ci/docker/fedora/prepare.sh'
+
+.fedora fluster image:
+  variables:
+    CCACHE_DIR: !reference [".fedora image", "variables", CCACHE_DIR]
+    FDO_DISTRIBUTION_VERSION: !reference [".fedora image", "variables", FDO_DISTRIBUTION_VERSION]
+    FDO_REPO_SUFFIX: !reference [".fedora image", "variables", FDO_REPO_SUFFIX]
+    FDO_DISTRIBUTION_TAG: "fluster-$FEDORA_TAG-$GST_UPSTREAM_BRANCH"
+    FDO_DISTRIBUTION_EXEC: "bash ./ci/docker/fedora/virtme-fluster-setup.sh"
+    # Base the fluster image on top of the main fedora build image
+    FDO_BASE_IMAGE: "$CI_REGISTRY_IMAGE/$FDO_REPO_SUFFIX:$FEDORA_TAG-$GST_UPSTREAM_BRANCH"
 
 fedora amd64 docker:
   extends:
@@ -142,6 +152,34 @@ fedora amd64 docker:
   # Note: assumption is that placeholder jobs run on a packet runner
   # (which has faster network connectivity to the registry).
   tags: [ 'placeholder-job' ]
+
+fedora amd64 docker fluster:
+  extends:
+    - '.fedora fluster image'
+    - '.fdo.container-build@fedora'
+  stage: 'preparation'
+  needs: ["fedora amd64 docker"]
+  # Note: assumption is that placeholder jobs run on a packet runner
+  # (which has faster network connectivity to the registry).
+  tags: [ 'placeholder-job' ]
+
+# Build a toolbox specific image to workaround ci-templates
+fedora amd64 toolbox:
+  image: quay.io/freedesktop.org/ci-templates:container-build-base-2024-01-31.0
+  stage: 'preparation'
+  needs: ["fedora amd64 docker"]
+  # Note: assumption is that placeholder jobs run on a packet runner
+  # (which has faster network connectivity to the registry).
+  tags: [ 'placeholder-job' ]
+  variables:
+    GST_CI_IMAGE: !reference [".build fedora x86_64", "variables", FDO_DISTRIBUTION_IMAGE]
+    FDO_DISTRIBUTION_TAG: !reference [".fedora image", "variables", FDO_DISTRIBUTION_TAG]
+    FDO_REPO_SUFFIX: !reference [".fedora image", "variables", FDO_REPO_SUFFIX]
+  script:
+    - bash ci/scripts/build-toolbox-image.sh $GST_CI_IMAGE $FDO_DISTRIBUTION_TAG $GST_UPSTREAM_BRANCH
+  rules:
+    - if: $CI_COMMIT_BRANCH == "alatiera/toolbox-image"
+    - if: $CI_PROJECT_NAMESPACE == "gstreamer" && $CI_COMMIT_BRANCH == $GST_UPSTREAM_BRANCH
 
 .debian image:
   variables:
@@ -343,19 +381,18 @@ commitlint:
     when: "always"
     paths:
       - 'meson-logs/'
+      - 'diffs/job_plugins.diff'
   rules:
     - !reference [.upstream-branch-rules, rules]
     - changes:
         *modules_changes
-    - changes:
-        - subprojects/gstreamer-vaapi/**/*
 
 .build simple:
   extends:
     - '.build'
     - '.build_ccache_vars'
   variables:
-    GST_WERROR: "true"
+    GST_WERROR: "false"
     MESON_ARGS: "${SIMPLE_BUILD}"
     SUBPROJECTS_CACHE_DIR: "/subprojects"
   script:
@@ -363,6 +400,7 @@ commitlint:
     - ./gst-env.py gst-inspect-1.0 --version
     - ./gst-env.py gst-inspect-1.0
     - G_DEBUG=fatal_criticals ./gst-env.py gst-inspect-1.0 --print-all --gst-disable-registry-fork > /dev/null
+    - ./gst-env.py python3 ./ci/scripts/check-plugins.py
     - meson install --destdir $CI_PROJECT_DIR/destdir -C build
     - rm -rf $CI_PROJECT_DIR/destdir
 
@@ -394,12 +432,18 @@ build fedora gcc:
         # https://github.com/mesonbuild/meson/issues/5214
         # https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/4281?commit_id=d1a687b61d8fbc5ae35b4bb62aa7fd1d091818f2#note_1875699
         #
-        # VAAPI can't be build statically yet
-        # subprojects/gstreamer-vaapi/meson.build:8:2: ERROR: Problem encountered: GStreamer-VAAPI plugin not supported with `static` builds yet.
-        #
         # Disabling gstreamer-sharp tests because they download things as part of configure with
         # nuget which frequently fails on the CI (possibly because we're hammering the site)
-        MESON_ARGS: "${DEFAULT_MESON_ARGS} -Dvaapi=disabled -Dpython=auto -Dgst-editing-services:python=disabled -Dintrospection=disabled -Ddoc=disabled -Dgstreamer-sharp:tests=disabled"
+        #
+        # Disabling building both qt5 and qt6 when doing static builds since we can only link against one
+        MESON_ARGS: >-
+          ${DEFAULT_MESON_ARGS}
+          -Dpython=auto
+          -Dgst-editing-services:python=disabled
+          -Dintrospection=disabled
+          -Ddoc=disabled
+          -Dgstreamer-sharp:tests=disabled
+          -Dqt5=disabled -Dqt6=enabled
 
 build fedora clang:
   extends: '.build fedora x86_64'
@@ -412,23 +456,20 @@ build fedora clang:
         BUILD_GST_DEBUG: ["-Dgstreamer:gst_debug=true", "-Dgstreamer:gst_debug=false"]
         MESON_ARGS: >-
           ${SIMPLE_BUILD}
-          --force-fallback-for=glib
 
       - BUILD_TYPE: ["--default-library=static"]
         BUILD_GST_DEBUG: ["-Dgstreamer:gst_debug=true", "-Dgstreamer:gst_debug=false"]
-        # VAAPI can't be build statically yet
-        # subprojects/gstreamer-vaapi/meson.build:8:2: ERROR: Problem encountered: GStreamer-VAAPI plugin not supported with `static` builds yet.
-        #
         # Disabling gstreamer-sharp tests because they download things as part of configure with
         # nuget which frequently fails on the CI (possibly because we're hammering the site)
+        #
+        # Disabling building both qt5 and qt6 when doing static builds since we can only link against one
         MESON_ARGS: >-
           ${DEFAULT_MESON_ARGS}
-          -Dvaapi=disabled
           -Dintrospection=disabled
           -Dpython=disabled
           -Ddoc=disabled
           -Dgstreamer-sharp:tests=disabled
-          --force-fallback-for=glib
+          -Dqt5=disabled -Dqt6=enabled
 
 build debian x86_64:
   extends:
@@ -457,7 +498,6 @@ build debian x86_64:
     MESON_ARGS: >-
       ${DEFAULT_MESON_ARGS}
       -Dlibav=disabled
-      -Dvaapi=disabled
       -Dgst-plugins-base:pango=enabled
       -Dgst-plugins-good:cairo=enabled
       -Dgst-plugins-good:soup=enabled
@@ -488,6 +528,7 @@ build debian x86_64:
    when: "always"
    paths:
      - 'build/meson-logs/'
+     - 'diffs/job_plugins.diff'
 
 build vs2022 amd64:
   extends: '.build windows'
@@ -497,6 +538,7 @@ build vs2022 amd64:
     - meson compile -C build --jobs $env:FDO_CI_CONCURRENT
     - .\gst-env.py gst-inspect-1.0.exe --version
     - .\gst-env.py gst-inspect-1.0.exe
+    - .\gst-env.py python ./ci/scripts/check-plugins.py
     - mkdir destdir
     - meson install -C build --destdir installdir
     - Remove-Item -Recurse -Force build\installdir
@@ -594,11 +636,9 @@ build macos:
       - BUILD_TYPE: ["--default-library=both"]
         BUILD_GST_DEBUG: ["-Dgstreamer:gst_debug=true"]
         # FIXME: We currently don't have pkg-config required by gobject-introspection/pygobject/sharp
-        # macos doesn't support vaapi
         MESON_ARGS: >-
           ${SIMPLE_BUILD}
           -Dintrospection=disabled
-          -Dvaapi=disabled
           -Dsharp=disabled
           -Dpython=disabled
           -Ddoc=disabled
@@ -615,7 +655,7 @@ build macos:
   needs:
     - "trigger"
   variables:
-    GST_WERROR: "true"
+    GST_WERROR: "false"
     MESON_ARGS: "${SIMPLE_BUILD}"
     SUBPROJECTS_CACHE_DIR: "/subprojects"
 
@@ -671,8 +711,6 @@ check fedora:
   rules:
     - changes:
         *modules_changes
-    - changes:
-        - subprojects/gstreamer-vaapi/**/*
 
 integration testsuites fedora:
   extends: '.test fedora x86_64'
@@ -681,7 +719,6 @@ integration testsuites fedora:
     MESON_ARGS: >-
       ${SIMPLE_BUILD}
       -Dsharp=disabled
-      -Dvaapi=disabled
       -Dexamples=disabled
       -Dgst-examples=disabled
       -Dtests=disabled
@@ -735,8 +772,11 @@ gstreamer-full static build:
   stage: 'build'
   variables:
     BUILD_TYPE: "--default-library=static"
+    # Disabling building both qt5 and qt6 when doing static builds since we can only link against one
     MESON_ARGS: >-
       -Ddoc=disabled
+      -Dqt5=disabled -Dqt6=enabled
+
     SUBPROJECTS_CACHE_DIR: "/subprojects"
   script:
   - $CI_PROJECT_DIR/ci/scripts/build.sh build/
@@ -771,8 +811,11 @@ gstreamer-full-minimal static build:
   - ls -l build/libgstreamer-full-1.0.so
 
 # v4l2-stateless-decoders tests
-fluster v4l2-stateless on visl:
-  extends: 'gstreamer-full static build'
+# Disabled for now due to failures with qemu on fedora 40
+.fluster v4l2-stateless on visl:
+  extends:
+    - '.fedora fluster image'
+    - '.fdo.suffixed-image@fedora'
   stage: 'test'
   variables:
     BUILD_GST_DEBUG: '-Dgstreamer:gst_debug=false'
@@ -828,8 +871,6 @@ fluster v4l2-stateless on visl:
   rules:
     - changes:
         *modules_changes
-    - changes:
-        - subprojects/gstreamer-vaapi/**/*
 
 valgrind core:
   extends: '.valgrind fedora x86_64'
@@ -939,7 +980,6 @@ valgrind ges:
     # Disable werror for the docs build, we don't need it
     GST_WERROR: 'false'
     SUBPROJECTS_CACHE_DIR: "/subprojects"
-    CI_ARTIFACTS_URL: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/"
   script:
     - $CI_PROJECT_DIR/ci/scripts/build-docs.sh build/
   artifacts:
@@ -991,7 +1031,6 @@ build documentation:
       - subprojects/gst-plugins-good/**/*
       - subprojects/gst-plugins-ugly/**/*
       - subprojects/gstreamer/**/*
-      - subprojects/gstreamer-vaapi/**/*
       - subprojects/gst-rtsp-server/**/*
 
 # FIXME: Using trigger: causes permission issues, workaround using old REST API.

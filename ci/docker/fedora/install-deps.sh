@@ -8,34 +8,45 @@ sed -i '/tsflags=nodocs/d' /etc/dnf/dnf.conf
 dnf -y swap coreutils-single coreutils-full
 
 # Add rpm fusion repositories in order to access all of the gst plugins
-sudo dnf install -y \
+dnf install -y \
   "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
   "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm"
 
+# Enable the debuginfo repos so -debug packages are kept in sync
+dnf install -y dnf-plugins-core
+dnf config-manager --set-enabled '*-debuginfo'
+
 dnf upgrade -y && dnf distro-sync -y
-dnf install -y $(<./ci/docker/fedora/deps.txt)
 
 # Install the dependencies of gstreamer
-dnf builddep -y gstreamer1 \
-    gstreamer1-plugins-base \
-    gstreamer1-plugins-good \
-    gstreamer1-plugins-good-extras \
-    gstreamer1-plugins-good-qt \
-    gstreamer1-plugins-ugly \
-    gstreamer1-plugins-ugly-free \
+dnf builddep -y --skip-broken --allowerasing --best \
+    gstreamer1 \
     gstreamer1-plugins-bad-free \
     gstreamer1-plugins-bad-free-extras \
     gstreamer1-plugins-bad-freeworld \
-    gstreamer1-libav \
-    gstreamer1-rtsp-server  \
-    gstreamer1-vaapi \
-    python3-gstreamer1
+    gstreamer1-plugins-base \
+    gstreamer1-plugins-good \
+    gstreamer1-plugins-good-extras \
+    gstreamer1-plugins-ugly \
+    gstreamer1-plugins-ugly-free \
+    gstreamer1-rtsp-server
+
+dnf remove -y \
+    'ffmpeg-free*' \
+    'fdk-aac-free*'
+
+dnf install -y $(<./ci/docker/fedora/deps.txt)
 
 dnf remove -y meson -x ninja-build
-pip3 install meson hotdoc python-gitlab tomli junitparser
+pip3 install meson python-gitlab tomli junitparser
+# Install specific hotdoc version for doc fixes
+pip3 install git+https://github.com/hotdoc/hotdoc.git@421ff10b65e4767ac6982cd8dda2a9f5621cf67c
 
 # Remove gst-devel packages installed by builddep above
 dnf remove -y "gstreamer1*devel"
+
+# We use rustup to install the rust toolchain, we don't need fedora's
+dnf remove -y rust cargo
 
 dnf install -y glib2-doc gdk-pixbuf2-devel gtk3-devel-docs gtk4-devel-docs libsoup-doc
 
@@ -46,6 +57,7 @@ debug_packages=$(rpm -qa | grep -v -i \
     -e bluez \
     -e boost \
     -e ccache \
+    -e ceph \
     -e clang \
     -e cmake \
     -e colord \
@@ -86,6 +98,7 @@ debug_packages=$(rpm -qa | grep -v -i \
     -e qemu \
     -e qt5 \
     -e qt6 \
+    -e sequoia \
     -e spice \
     -e sqlite \
     -e suitesparse \
@@ -107,5 +120,4 @@ dnf debuginfo-install -y --best --allowerasing --skip-broken $debug_packages
 echo "Removing DNF cache"
 dnf clean all
 
-rm -R /root/*
 rm -rf /var/cache/dnf /var/log/dnf*
