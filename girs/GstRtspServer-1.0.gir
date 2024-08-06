@@ -7554,7 +7554,7 @@ gst_rtsp_server_create_source() and attach it to @context manually.</doc>
       <method name="client_filter" c:identifier="gst_rtsp_server_client_filter">
         <doc xml:space="preserve" filename="../subprojects/gst-rtsp-server/gst/rtsp-server/rtsp-server.c">Call @func for each client managed by @server. The result value of @func
 determines what happens to the client. @func will be called with @server
-locked so no further actions on @server can be performed from @func.
+unlocked so any actions on @server can be performed from @func.
 
 If @func returns #GST_RTSP_FILTER_REMOVE, the client will be removed from
 @server.
