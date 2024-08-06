@@ -1484,7 +1484,7 @@ gst_rtsp_server_client_filter (GstRTSPServer * server,
         case GST_RTSP_FILTER_REF:
           break;
         case GST_RTSP_FILTER_REMOVE:
-          gst_rtsp_client_close (client);
+          gst_rtsp_client_schedule_close (client);
           /* fall-through */
         case GST_RTSP_FILTER_KEEP:
           /* fall-through */
