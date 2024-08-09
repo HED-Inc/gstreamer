@@ -26,6 +26,7 @@
 #include <gst/gst.h>
 #include <gst/analytics/analytics-meta-prelude.h>
 #include <gst/analytics/gstanalyticsmeta.h>
+#include <gst/analytics/gsttensor.h>
 
 G_BEGIN_DECLS
 
@@ -41,6 +42,23 @@ G_BEGIN_DECLS
  * Since 1.26
  */
 typedef struct _GstAnalyticsMtd GstAnalyticsTensorMtd;
+
+
+GST_ANALYTICS_META_API
+GstAnalyticsMtdType
+gst_analytics_tensor_mtd_get_mtd_type (void);
+
+GST_ANALYTICS_META_API
+GstTensor *
+gst_analytics_tensor_mtd_get_tensor (GstAnalyticsTensorMtd * handle);
+
+GST_ANALYTICS_META_API
+gboolean
+gst_analytics_relation_meta_add_tensor_mtd (GstAnalyticsRelationMeta * instance,
+    GQuark id, gsize num_dims, GstTensorDimOrder dims_order,
+    GstTensorLayout layout, GstTensorDataType data_type, gsize batch_size,
+    GstBuffer * tensor_buffer, gsize * dims,
+    GstAnalyticsTensorMtd * tensor_mtd);
 
 
 G_END_DECLS

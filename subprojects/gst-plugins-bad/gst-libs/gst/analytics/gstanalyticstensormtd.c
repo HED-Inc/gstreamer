@@ -49,5 +49,69 @@
  */
 
 
-static void gst_analytics_tensor_mtd_clear (GstBuffer * buffer, GstAnalyticsMtd
-    * mtd);
+static void gst_analytics_tensor_mtd_clear (GstBuffer * buffer,
+    GstAnalyticsMtd * mtd);
+
+static const GstAnalyticsMtdImpl tensor_impl = {
+  "tensor",
+  NULL,
+  gst_analytics_tensor_mtd_clear
+};
+
+typedef GstTensor GstAnalyticsTensorMtdData;
+
+GstAnalyticsMtdType
+gst_analytics_tensor_mtd_get_mtd_type (void)
+{
+  return (GstAnalyticsMtdType) & tensor_impl;
+}
+
+GstTensor *
+gst_analytics_tensor_mtd_get_tensor (GstAnalyticsTensorMtd * handle)
+{
+  GstAnalyticsTensorMtdData *mtddata;
+
+  g_return_val_if_fail (handle, NULL);
+
+  mtddata = gst_analytics_relation_meta_get_mtd_data (handle->meta, handle->id);
+  g_return_val_if_fail (mtddata != NULL, NULL);
+
+  return mtddata;
+}
+
+gboolean
+gst_analytics_relation_meta_add_tensor_mtd (GstAnalyticsRelationMeta * instance,
+    GQuark id, gsize num_dims, GstTensorDimOrder dims_order,
+    GstTensorLayout layout, GstTensorDataType data_type, gsize batch_size,
+    GstBuffer * tensor_buffer, gsize * dims, GstAnalyticsTensorMtd * tensor_mtd)
+{
+  const gsize dims_size = sizeof (gsize) * num_dims;
+  const gsize size = sizeof (GstAnalyticsTensorMtdData) + dims_size;
+
+  GstAnalyticsTensorMtdData *mtddata = NULL;
+  mtddata = (GstAnalyticsTensorMtdData *)
+      gst_analytics_relation_meta_add_mtd (instance, &tensor_impl, size,
+      tensor_mtd);
+
+  if (mtddata) {
+    mtddata->id = id;
+    mtddata->num_dims = num_dims;
+    mtddata->dims_order = dims_order;
+    mtddata->layout = layout;
+    mtddata->data_type = data_type;
+    mtddata->batch_size = batch_size;
+    mtddata->data = tensor_buffer;
+    memcpy (mtddata->dims, dims, num_dims);
+  }
+
+  return mtddata != NULL;
+}
+
+static void
+gst_analytics_tensor_mtd_clear (GstBuffer * buffer, GstAnalyticsMtd * mtd)
+{
+  GstAnalyticsTensorMtdData *tensordata;
+  tensordata = gst_analytics_relation_meta_get_mtd_data (mtd->meta, mtd->id);
+  g_return_if_fail (tensordata != NULL);
+  gst_clear_buffer (&tensordata->data);
+}
