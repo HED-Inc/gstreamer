@@ -939,6 +939,8 @@ GST_END_TEST;
 GST_START_TEST (test_add_tensor_mtd)
 {
   /* Verify we can add a tensor to analytics-meta and retrieve it */
+  GstBufferPool *vpool, *tpool;
+  GstStructure *config;
   GstBuffer *vbuf, *tbuf;
   GstAnalyticsRelationMeta *rmeta;
   GstTensor *tensor;
@@ -948,8 +950,26 @@ GST_START_TEST (test_add_tensor_mtd)
   GstAnalyticsTensorMtd tensor_mtd;
   gboolean ret;
 
-  vbuf = gst_buffer_new ();
-  tbuf = gst_buffer_new_memdup (tensor_data, sizeof (gint32) * 4);
+  vpool = gst_buffer_pool_new ();
+  config = gst_buffer_pool_get_config (vpool);
+  gst_buffer_pool_config_set_params (config, NULL, 1, 1, 0);
+  gst_buffer_pool_set_config (vpool, config);
+  gst_buffer_pool_set_active (vpool, TRUE);
+
+  tpool = gst_buffer_pool_new ();
+  config = gst_buffer_pool_get_config (tpool);
+  gst_buffer_pool_config_set_params (config, NULL, 40, 1, 0);
+  gst_buffer_pool_set_config (tpool, config);
+  gst_buffer_pool_set_active (tpool, TRUE);
+
+  gst_buffer_pool_acquire_buffer (vpool, &vbuf, NULL);
+  gst_buffer_pool_acquire_buffer (tpool, &tbuf, NULL);
+
+  GstBufferMapInfo minfo;
+  gst_buffer_map (tbuf, &minfo, GST_MAP_READWRITE);
+  memcpy (minfo.data, tensor_data, sizeof (gint32) * 4);
+  gst_buffer_unmap (tbuf, &minfo);
+
   rmeta = gst_buffer_add_analytics_relation_meta (vbuf);
   ret = gst_analytics_relation_meta_add_tensor_mtd (rmeta, tensor_id, 1,
       GST_TENSOR_DIM_ORDER_ROW_MAJOR, GST_TENSOR_LAYOUT_STRIDED,
@@ -959,12 +979,14 @@ GST_START_TEST (test_add_tensor_mtd)
   tensor = gst_analytics_tensor_mtd_get_tensor (&tensor_mtd);
 
   fail_unless (tensor != NULL);
-  fail_unless (tensor->batch_size == 1);
-  fail_unless (tensor->num_dims == 1);
-  fail_unless (tensor->dims[0] == (gsize) 4);
-  fail_unless (tensor->data == tbuf);
+  fail_unless_equals_int (tensor->batch_size, 1);
+  fail_unless_equals_int (tensor->num_dims, 1);
+  fail_unless_equals_int (tensor->dims[0], dims[0]);
+  fail_unless_equals_pointer (tensor->data, tbuf);
 
   gst_buffer_unref (vbuf);
+  gst_object_unref (tpool);
+  gst_object_unref (vpool);
 }
 
 GST_END_TEST;
