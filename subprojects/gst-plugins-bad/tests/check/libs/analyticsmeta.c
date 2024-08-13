@@ -936,6 +936,39 @@ GST_START_TEST (test_add_tracking_meta)
 
 GST_END_TEST;
 
+GST_START_TEST (test_add_tensor_mtd)
+{
+  /* Verify we can add a tensor to analytics-meta and retrieve it */
+  GstBuffer *vbuf, *tbuf;
+  GstAnalyticsRelationMeta *rmeta;
+  GstTensor *tensor;
+  GQuark tensor_id = g_quark_from_string ("model_abc/tensor_xyz");
+  gint32 tensor_data[] = { 1, 2, 3, 4 };
+  gsize dims[] = { 4 };
+  GstAnalyticsTensorMtd tensor_mtd;
+  gboolean ret;
+
+  vbuf = gst_buffer_new ();
+  tbuf = gst_buffer_new_memdup (tensor_data, sizeof (gint32) * 4);
+  rmeta = gst_buffer_add_analytics_relation_meta (vbuf);
+  ret = gst_analytics_relation_meta_add_tensor_mtd (rmeta, tensor_id, 1,
+      GST_TENSOR_DIM_ORDER_ROW_MAJOR, GST_TENSOR_LAYOUT_STRIDED,
+      GST_TENSOR_TYPE_INT32, 1, tbuf, dims, &tensor_mtd);
+  fail_unless (ret == TRUE);
+
+  tensor = gst_analytics_tensor_mtd_get_tensor (&tensor_mtd);
+
+  fail_unless (tensor != NULL);
+  fail_unless (tensor->batch_size == 1);
+  fail_unless (tensor->num_dims == 1);
+  fail_unless (tensor->dims[0] == (gsize) 4);
+  fail_unless (tensor->data == tbuf);
+
+  gst_buffer_unref (vbuf);
+}
+
+GST_END_TEST;
+
 static Suite *
 analyticmeta_suite (void)
 {
@@ -946,6 +979,7 @@ analyticmeta_suite (void)
   TCase *tc_chain_od;
   TCase *tc_chain_od_cls;
   TCase *tc_chain_tracking;
+  TCase *tc_chain_tensor_mtd;
 
   s = suite_create ("Analytic Meta Library");
 
@@ -978,6 +1012,10 @@ analyticmeta_suite (void)
   tc_chain_tracking = tcase_create ("Tracking Mtd");
   suite_add_tcase (s, tc_chain_tracking);
   tcase_add_test (tc_chain_tracking, test_add_tracking_meta);
+
+  tc_chain_tensor_mtd = tcase_create ("Tensor Mtd");
+  suite_add_tcase (s, tc_chain_tensor_mtd);
+  tcase_add_test (tc_chain_tensor_mtd, test_add_tensor_mtd);
   return s;
 }
 
