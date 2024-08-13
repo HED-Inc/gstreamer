@@ -101,7 +101,7 @@ gst_analytics_relation_meta_add_tensor_mtd (GstAnalyticsRelationMeta * instance,
     mtddata->data_type = data_type;
     mtddata->batch_size = batch_size;
     mtddata->data = tensor_buffer;
-    memcpy (mtddata->dims, dims, num_dims);
+    memcpy (mtddata->dims, dims, dims_size);
   }
 
   return mtddata != NULL;
