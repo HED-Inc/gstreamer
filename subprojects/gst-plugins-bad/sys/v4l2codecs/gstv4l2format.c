@@ -27,21 +27,28 @@ struct FormatEntry
   guint32 v4l2_pix_fmt;
   gint num_planes;
   GstVideoFormat gst_fmt;
+  guint32 drm_fourcc;
+  guint64 drm_mod;
   guint bitdepth;
   gint subsampling;
 };
 
 static struct FormatEntry format_map[] = {
-  {V4L2_PIX_FMT_NV12, 1, GST_VIDEO_FORMAT_NV12, 8, 420},
-  {V4L2_PIX_FMT_YUYV, 1, GST_VIDEO_FORMAT_YUY2, 8, 422},
-  {V4L2_PIX_FMT_SUNXI_TILED_NV12, 1, GST_VIDEO_FORMAT_NV12_32L32, 8, 422},
-  {V4L2_PIX_FMT_NV12_4L4, 1, GST_VIDEO_FORMAT_NV12_4L4, 8, 420},
-  {V4L2_PIX_FMT_MM21, 2, GST_VIDEO_FORMAT_NV12_16L32S, 8, 420},
-  {V4L2_PIX_FMT_YUV420M, 3, GST_VIDEO_FORMAT_I420, 8, 420},
-  {V4L2_PIX_FMT_P010, 1, GST_VIDEO_FORMAT_P010_10LE, 16, 420},
-  {V4L2_PIX_FMT_NV15_4L4, 1, GST_VIDEO_FORMAT_NV12_10LE40_4L4, 10, 420},
-  {V4L2_PIX_FMT_MT2110T, 2, GST_VIDEO_FORMAT_MT2110T, 10, 420},
-  {V4L2_PIX_FMT_MT2110R, 2, GST_VIDEO_FORMAT_MT2110R, 10, 420},
+  {V4L2_PIX_FMT_NV12, 1, GST_VIDEO_FORMAT_NV12, 0x3231564e, 0x0, 8, 420},
+  {V4L2_PIX_FMT_YUYV, 1, GST_VIDEO_FORMAT_YUY2, 0x0, 0x0, 8, 422},
+  {V4L2_PIX_FMT_SUNXI_TILED_NV12, 1, GST_VIDEO_FORMAT_NV12_32L32, 0x0, 0x0, 8,
+      422},
+  {V4L2_PIX_FMT_NV12_4L4, 1, GST_VIDEO_FORMAT_NV12_4L4, 0x0, 0x0, 8, 420},
+  {V4L2_PIX_FMT_MM21, 2, GST_VIDEO_FORMAT_NV12_16L32S, 0x0, 0x0, 8, 420},
+  {V4L2_PIX_FMT_YUV420M, 3, GST_VIDEO_FORMAT_I420, 0x0, 0x0, 8, 420},
+  {V4L2_PIX_FMT_P010, 1, GST_VIDEO_FORMAT_P010_10LE, 0x0, 0x0, 16, 420},
+  {V4L2_PIX_FMT_NV15_4L4, 1, GST_VIDEO_FORMAT_NV12_10LE40_4L4, 0x0, 0x0, 10,
+      420},
+  {V4L2_PIX_FMT_MT2110T, 2, GST_VIDEO_FORMAT_MT2110T, 0x0, 0x0, 10, 420},
+  {V4L2_PIX_FMT_MT2110R, 2, GST_VIDEO_FORMAT_MT2110R, 0x0, 0x0, 10, 420},
+  {0x3231434e /* NC12 */ , 1, GST_VIDEO_FORMAT_DMA_DRM, 0x3231564e /* NV12 */ ,
+      0x0700000000000004, 8, 420},
+  // {0x3033434e /* NC30 */ , ?, GST_VIDEO_FORMAT_DMA_DRM, ?, ?, ?, ?},
   {0,}
 };
 
@@ -62,15 +69,25 @@ lookup_v4l2_fmt (guint v4l2_pix_fmt)
 }
 
 static struct FormatEntry *
-lookup_gst_fmt (GstVideoFormat gst_fmt)
+lookup_gst_fmt (GstVideoFormat gst_fmt, guint32 drm_fourcc, guint64 drm_mod)
 {
   gint i;
   struct FormatEntry *ret = NULL;
 
-  for (i = 0; format_map[i].v4l2_pix_fmt; i++) {
-    if (format_map[i].gst_fmt == gst_fmt) {
-      ret = format_map + i;
-      break;
+  if (gst_fmt != GST_VIDEO_FORMAT_DMA_DRM) {
+    for (i = 0; format_map[i].v4l2_pix_fmt; i++) {
+      if (format_map[i].gst_fmt == gst_fmt) {
+        ret = format_map + i;
+        break;
+      }
+    }
+  } else if (drm_fourcc) {
+    for (i = 0; format_map[i].v4l2_pix_fmt; i++) {
+      if (format_map[i].drm_fourcc == drm_fourcc &&
+          format_map[i].drm_mod == drm_mod) {
+        ret = format_map + i;
+        break;
+      }
     }
   }
 
@@ -181,7 +198,8 @@ gst_v4l2_format_to_video_info (struct v4l2_format *fmt, GstVideoInfo * out_info)
 }
 
 gboolean
-gst_v4l2_format_to_video_format (guint32 pix_fmt, GstVideoFormat * out_format)
+gst_v4l2_format_to_video_format (guint32 pix_fmt, GstVideoFormat * out_format,
+    guint32 * out_drm_fourcc, guint64 * out_drm_mod)
 {
   struct FormatEntry *entry = lookup_v4l2_fmt (pix_fmt);
 
@@ -189,13 +207,16 @@ gst_v4l2_format_to_video_format (guint32 pix_fmt, GstVideoFormat * out_format)
     return FALSE;
 
   *out_format = entry->gst_fmt;
+  *out_drm_fourcc = entry->drm_fourcc;
+  *out_drm_mod = entry->drm_mod;
   return TRUE;
 }
 
 gboolean
-gst_v4l2_format_from_video_format (GstVideoFormat format, guint32 * out_pix_fmt)
+gst_v4l2_format_from_video_format (GstVideoFormat format, guint32 drm_fourcc,
+    guint64 drm_mod, guint32 * out_pix_fmt)
 {
-  struct FormatEntry *entry = lookup_gst_fmt (format);
+  struct FormatEntry *entry = lookup_gst_fmt (format, drm_fourcc, drm_mod);
 
   if (!entry)
     return FALSE;
