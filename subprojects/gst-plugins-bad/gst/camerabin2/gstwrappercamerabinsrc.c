@@ -556,7 +556,7 @@ gst_wrapper_camera_bin_src_construct_pipeline (GstBaseCameraSrc * bcamsrc)
                 "src-crop")))
       goto done;
 
-    if (!gst_camerabin_create_and_add_element (cbin, "videoconvert",
+    if (!gst_camerabin_create_and_add_element (cbin, "imxpxpvideotransform",
             "src-videoconvert"))
       goto done;
 
