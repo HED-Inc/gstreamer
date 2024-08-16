@@ -26,6 +26,7 @@ set(GSTREAMER_NDK_BUILD_PATH  "${GSTREAMER_ROOT}/share/gst-android/ndk-build/")
 set(GSTREAMER_PLUGINS         coreelements)
 find_library(LOG_LIB log REQUIRED)
 find_package(GStreamer COMPONENTS mobile ${GSTREAMER_PLUGINS} REQUIRED)
+find_package(GStreamerMobile REQUIRED)
 
 add_library(tutorial-1 SHARED tutorial-1.c dummy.cpp)
 target_link_libraries(tutorial-1

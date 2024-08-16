@@ -27,6 +27,7 @@ include("${GSTREAMER_NDK_BUILD_PATH}/plugins.cmake")
 set(GSTREAMER_PLUGINS         ${GSTREAMER_PLUGINS_CORE} ${GSTREAMER_PLUGINS_SYS})
 find_library(LOG_LIB log REQUIRED)
 find_package(GStreamer COMPONENTS mobile ${GSTREAMER_PLUGINS} REQUIRED)
+find_package(GStreamerMobile REQUIRED)
 
 add_library(tutorial-2 SHARED tutorial-2.c dummy.cpp)
 target_link_libraries(tutorial-2

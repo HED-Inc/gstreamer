@@ -63,9 +63,6 @@ Setting the following variables is required, depending on the operating system:
 ``GStreamer_USE_STATIC_LIBS`
   Set to ON to force the use of the static libraries. Default is OFF.
 
-``GStreamer_ASSETS_DIR``
-  Target directory for deploying assets to. (Android/iOS only)
-
 ``GStreamer_JAVA_SRC_DIR``
   Target directory for deploying the selected plugins' Java classfiles to. (Android only)
 
@@ -128,28 +125,10 @@ if(ANDROID)
         set(GStreamer_JAVA_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../${GStreamer_JAVA_SRC_DIR}")
     endif()
 
-    if(NOT DEFINED GStreamer_ASSETS_DIR AND DEFINED GSTREAMER_ASSETS_DIR)
-        set(GStreamer_ASSETS_DIR "${GSTREAMER_ASSETS_DIR}")
-    elseif(NOT DEFINED GStreamer_ASSETS_DIR)
-        set(GStreamer_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../src/assets/")
-    else()
-        # Same as above
-        set(GStreamer_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${GStreamer_ASSETS_DIR}")
-    endif()
-
     if(NOT DEFINED GStreamer_NDK_BUILD_PATH AND DEFINED GSTREAMER_NDK_BUILD_PATH)
         set(GStreamer_NDK_BUILD_PATH "${GSTREAMER_NDK_BUILD_PATH}")
     elseif(NOT DEFINED GStreamer_NDK_BUILD_PATH)
         set(GStreamer_NDK_BUILD_PATH  "${GStreamer_ROOT}/share/gst-android/ndk-build/")
-    endif()
-elseif(IOS)
-    if(NOT DEFINED GStreamer_ASSETS_DIR AND DEFINED GSTREAMER_ASSETS_DIR)
-        set(GStreamer_ASSETS_DIR ${GSTREAMER_ASSETS_DIR})
-    elseif(NOT DEFINED GStreamer_ASSETS_DIR)
-        set(GStreamer_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
-    else()
-        # Same as above
-        set(GStreamer_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../${GStreamer_ASSETS_DIR}")
     endif()
 endif()
 
@@ -309,14 +288,6 @@ endif()
 
 if (ANDROID)
     list(APPEND GStreamer_EXTRA_DEPS zlib)
-
-    if (NOT (ca_certificates IN_LIST GStreamer_FIND_COMPONENTS))
-        list(APPEND GStreamer_FIND_COMPONENTS ca_certificates)
-    endif()
-
-    if (NOT (fonts IN_LIST GStreamer_FIND_COMPONENTS))
-        list(APPEND GStreamer_FIND_COMPONENTS fonts)
-    endif()
 endif()
 
 # Prepare Android hotfixes for x264
@@ -437,7 +408,7 @@ if(PC_GStreamer_FOUND AND (NOT TARGET GStreamer::GStreamer))
 endif()
 
 # Now, let's set up targets for each of the components supplied
-set(_gst_CUSTOM_TARGETS mobile ca_certificates fonts)
+set(_gst_CUSTOM_TARGETS mobile)
 if (PC_GStreamer_FOUND)
     # These are the required plugins
     set(GSTREAMER_PLUGINS ${GStreamer_FIND_COMPONENTS})
@@ -733,63 +704,6 @@ if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIN
     set(GStreamer_mobile_FOUND TRUE)
 endif()
 
-if(PC_GStreamer_FOUND AND (fonts IN_LIST GStreamer_FIND_COMPONENTS))
-    if (ANDROID AND (NOT TARGET copyfontsres_${ANDROID_ABI}))
-        add_custom_target(
-            copyfontsres_${ANDROID_ABI}
-            COMMAND
-                "${CMAKE_COMMAND}" -E make_directory
-                "${GStreamer_ASSETS_DIR}/fontconfig/fonts/truetype/"
-            COMMAND
-                "${CMAKE_COMMAND}" -E copy
-                "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts/Ubuntu-R.ttf"
-                "${GStreamer_ASSETS_DIR}/fontconfig/fonts/truetype/"
-            COMMAND
-                "${CMAKE_COMMAND}" -E copy
-                "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts.conf"
-                "${GStreamer_ASSETS_DIR}/fontconfig/"
-            BYPRODUCTS
-                "${GStreamer_ASSETS_DIR}/fontconfig/fonts/truetype/Ubuntu-R.ttf"
-                "${GStreamer_ASSETS_DIR}/fontconfig/fonts.conf"
-        )
-
-        if (TARGET GStreamerMobile)
-            add_dependencies(GStreamerMobile copyfontsres_${ANDROID_ABI})
-        endif()
-    elseif(APPLE)
-        list(APPEND GSTREAMER_RESOURCES 
-            "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts.conf"
-            "${GStreamer_NDK_BUILD_PATH}/fontconfig/fonts/Ubuntu-R.ttf"
-        )
-    else()
-        message(FATAL_ERROR "No fonts assets available for this operating system.")
-    endif()
-endif()
-
-if(PC_GStreamer_FOUND AND (ca_certificates IN_LIST GStreamer_FIND_COMPONENTS))
-    if (ANDROID AND (NOT TARGET copycacertificatesres_${ANDROID_ABI}))
-        add_custom_target(
-            copycacertificatesres_${ANDROID_ABI}
-            COMMAND
-                "${CMAKE_COMMAND}" -E make_directory
-                "${GStreamer_ASSETS_DIR}/ssl/certs/"
-            COMMAND
-                "${CMAKE_COMMAND}" -E copy
-                "${GStreamer_ROOT_DIR}/etc/ssl/certs/ca-certificates.crt"
-                "${GStreamer_ASSETS_DIR}/ssl/certs/"
-            BYPRODUCTS "${GStreamer_ASSETS_DIR}/ssl/certs/ca-certificates.crt"
-        )
-
-        if (TARGET GStreamerMobile)
-            add_dependencies(GStreamerMobile copycacertificatesres_${ANDROID_ABI})
-        endif()
-    elseif (APPLE)
-        list(APPEND GSTREAMER_RESOURCES "${GStreamer_ROOT_DIR}/etc/ssl/certs/ca-certificates.crt")
-    else()
-        message(FATAL_ERROR "No certificate bundle available for this operating system.")
-    endif()
-endif()
-
 foreach(_gst_PLUGIN IN LISTS GSTREAMER_PLUGINS)
     # Safety valve for the custom targets above
     if ("${_gst_plugin}" IN_LIST _gst_CUSTOM_TARGETS)
@@ -897,14 +811,6 @@ foreach(_gst_PLUGIN IN LISTS GSTREAMER_APIS)
         )
     endif()
 endforeach()
-
-if (TARGET GStreamerMobile AND GSTREAMER_RESOURCES)
-    set_target_properties(
-        GStreamerMobile
-        PROPERTIES
-            RESOURCE "${GSTREAMER_RESOURCES}"
-    )
-endif()
 
 # Perform final validation
 include(FindPackageHandleStandardArgs)

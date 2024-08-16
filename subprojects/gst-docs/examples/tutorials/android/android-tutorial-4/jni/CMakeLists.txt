@@ -30,6 +30,7 @@ set(G_IO_MODULES openssl)
 find_library(ANDROID_LIB android REQUIRED)
 find_library(LOG_LIB log REQUIRED)
 find_package(GStreamer COMPONENTS mobile ${GSTREAMER_PLUGINS} REQUIRED)
+find_package(GStreamerMobile REQUIRED)
 
 add_library(tutorial-4 SHARED tutorial-4.c dummy.cpp)
 target_link_libraries(tutorial-4
