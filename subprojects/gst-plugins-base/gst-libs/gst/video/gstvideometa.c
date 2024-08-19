@@ -124,6 +124,70 @@ gst_video_meta_transform (GstBuffer * dest, GstMeta * meta,
   return TRUE;
 }
 
+static gboolean
+gst_video_meta_api_params_aggregator (GstStructure ** aggregated_params,
+    GstStructure * params0, GstStructure * params1)
+{
+  GstVideoAlignment align0;
+  GstVideoAlignment align1;
+
+  GST_DEBUG ("aggregate params");
+
+  if (!params0 && !params1) {
+    *aggregated_params = NULL;
+    return TRUE;
+  }
+
+  if (params0 && !gst_structure_has_name (params0, "video-meta")) {
+    *aggregated_params = NULL;
+    return FALSE;
+  }
+
+  if (params1 && !gst_structure_has_name (params1, "video-meta")) {
+    *aggregated_params = NULL;
+    return FALSE;
+  }
+
+  if (params0 && !params1) {
+    *aggregated_params = gst_structure_copy (params0);
+    return TRUE;
+  }
+
+  if (!params0 && params1) {
+    *aggregated_params = gst_structure_copy (params1);
+    return TRUE;
+  }
+
+  gst_video_alignment_reset (&align0);
+  gst_video_alignment_reset (&align1);
+
+  gst_structure_get_uint (params0, "padding-top", &align0.padding_top);
+  gst_structure_get_uint (params0, "padding-bottom", &align0.padding_bottom);
+  gst_structure_get_uint (params0, "padding-left", &align0.padding_left);
+  gst_structure_get_uint (params0, "padding-right", &align0.padding_right);
+
+  gst_structure_get_uint (params1, "padding-top", &align1.padding_top);
+  gst_structure_get_uint (params1, "padding-bottom", &align1.padding_bottom);
+  gst_structure_get_uint (params1, "padding-left", &align1.padding_left);
+  gst_structure_get_uint (params1, "padding-right", &align1.padding_right);
+
+  *aggregated_params = gst_structure_new ("video-meta",
+      "padding-top", G_TYPE_UINT,
+      align0.padding_top > align1.padding_top ?
+      align0.padding_top : align1.padding_top,
+      "padding-bottom", G_TYPE_UINT,
+      align0.padding_bottom > align1.padding_bottom ?
+      align0.padding_bottom : align1.padding_bottom,
+      "padding-left", G_TYPE_UINT,
+      align0.padding_left > align1.padding_left ?
+      align0.padding_left : align1.padding_left,
+      "padding-right", G_TYPE_UINT,
+      align0.padding_right > align1.padding_right ?
+      align0.padding_right : align1.padding_right, NULL);
+
+  return TRUE;
+}
+
 GType
 gst_video_meta_api_get_type (void)
 {
@@ -136,6 +200,9 @@ gst_video_meta_api_get_type (void)
 
   if (g_once_init_enter (&type)) {
     GType _type = gst_meta_api_type_register ("GstVideoMetaAPI", tags);
+
+    gst_meta_api_type_set_aggregator (_type,
+        gst_video_meta_api_params_aggregator);
     g_once_init_leave (&type, _type);
   }
   return type;
