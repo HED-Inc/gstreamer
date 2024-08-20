@@ -24,6 +24,7 @@
 #endif
 
 #include "gstanalyticstensormtd.h"
+#include <gst/video/video.h>
 
 /**
  * SECTION: gstanalyticstensormtd
@@ -52,9 +53,13 @@
 static void gst_analytics_tensor_mtd_clear (GstBuffer * buffer,
     GstAnalyticsMtd * mtd);
 
+static gboolean
+gst_analytics_tensor_mtd_transform (GstBuffer * transbuf,
+    GstAnalyticsMtd * transmtd, GstBuffer * buffer, GQuark type, gpointer data);
+
 static const GstAnalyticsMtdImpl tensor_impl = {
   "tensor",
-  NULL,
+  gst_analytics_tensor_mtd_transform,
   gst_analytics_tensor_mtd_clear
 };
 
@@ -114,4 +119,21 @@ gst_analytics_tensor_mtd_clear (GstBuffer * buffer, GstAnalyticsMtd * mtd)
   tensordata = gst_analytics_relation_meta_get_mtd_data (mtd->meta, mtd->id);
   g_return_if_fail (tensordata != NULL);
   gst_clear_buffer (&tensordata->data);
+}
+
+static gboolean
+gst_analytics_tensor_mtd_transform (GstBuffer * transbuf,
+    GstAnalyticsMtd * transmtd, GstBuffer * buffer, GQuark type, gpointer data)
+{
+  GstAnalyticsTensorMtdData *tensordata;
+  if (GST_META_TRANSFORM_IS_COPY (type)) {
+    tensordata = gst_analytics_relation_meta_get_mtd_data (transmtd->meta,
+        transmtd->id);
+    gst_buffer_ref (tensordata->data);
+  } else if (GST_VIDEO_META_TRANSFORM_IS_SCALE (type) && transbuf != buffer) {
+    tensordata = gst_analytics_relation_meta_get_mtd_data (transmtd->meta,
+        transmtd->id);
+    gst_buffer_ref (tensordata->data);
+  }
+  return TRUE;
 }
