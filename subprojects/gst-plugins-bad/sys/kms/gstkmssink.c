@@ -687,6 +687,7 @@ get_drm_caps (GstKMSSink * self)
   guint64 has_dumb_buffer;
   guint64 has_prime;
   guint64 has_async_page_flip;
+  guint64 has_addfb2_modifiers;
 
   has_dumb_buffer = 0;
   ret = drmGetCap (self->fd, DRM_CAP_DUMB_BUFFER, &has_dumb_buffer);
@@ -713,11 +714,19 @@ get_drm_caps (GstKMSSink * self)
   else
     self->has_async_page_flip = (gboolean) has_async_page_flip;
 
+  has_addfb2_modifiers = 0;
+  ret = drmGetCap (self->fd, DRM_CAP_ADDFB2_MODIFIERS, &has_addfb2_modifiers);
+  if (ret)
+    GST_WARNING_OBJECT (self, "could not get addfb2 modifiers capability");
+  else
+    self->has_addfb2_modifiers = (gboolean) has_addfb2_modifiers;
+
   GST_INFO_OBJECT (self,
-      "prime import (%s) / prime export (%s) / async page flip (%s)",
+      "prime import (%s) / prime export (%s) / async page flip (%s) / addfb2 modifiers (%s)",
       self->has_prime_import ? "✓" : "✗",
       self->has_prime_export ? "✓" : "✗",
-      self->has_async_page_flip ? "✓" : "✗");
+      self->has_async_page_flip ? "✓" : "✗",
+      self->has_addfb2_modifiers ? "✓" : "✗");
 
   return TRUE;
 }

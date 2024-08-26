@@ -63,6 +63,7 @@ struct _GstKMSSink {
   gboolean has_prime_import;
   gboolean has_prime_export;
   gboolean has_async_page_flip;
+  gboolean has_addfb2_modifiers;
   gboolean can_scale;
 
   gboolean modesetting_enabled;
