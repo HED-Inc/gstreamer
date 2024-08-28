@@ -150,20 +150,24 @@ enum
 #define DEFAULT_RATE_CONTROL_MODE 0
 #define DEFAULT_CODING_SIGNS 0
 
-#if 0
+#define FORMATS_8_BIT "Y444, Y42B, I420"
+
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
-#define FORMAT_I420_10 "I420_10LE"
+#define FORMATS_10_BIT "Y444_10LE, I422_10LE, I420_10LE"
+#define FORMATS_12_BIT "Y444_12LE, I422_12LE, I420_12LE"
 #else
-#define FORMAT_I420_10 "I420_10BE"
-#endif
+#define FORMATS_10_BIT "Y444_10BE, I422_10BE, I420_10BE"
+#define FORMATS_12_BIT "Y444_12BE, I422_12BE, I420_12BE"
 #endif
 
+#define SUPPORTED_FORMATS FORMATS_8_BIT ", " FORMATS_10_BIT ", " FORMATS_12_BIT
+
 // FIXME: add 4:2:2 and 4:4:4 packed formats
-// FIXME: add 10-bit formats
 // Only handle progressive mode for now
 static GstStaticPadTemplate sink_pad_template =
 GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("video/x-raw, " "format = (string) { Y444, Y42B, I420 },"
+    GST_STATIC_CAPS ("video/x-raw, "
+        "format = { " SUPPORTED_FORMATS " },"
         "interlace-mode = progressive, "
         "width = (int) [16, 16384], " "height = (int) [16, 16384], "
         "framerate = (fraction) [0, MAX]"));
@@ -453,6 +457,42 @@ gst_svt_jpeg_xs_enc_set_format (GstVideoEncoder * encoder,
         break;
       case GST_VIDEO_FORMAT_Y444:
         enc->input_bit_depth = 8;
+        enc->colour_format = COLOUR_FORMAT_PLANAR_YUV444_OR_RGB;
+        sampling = "YCbCr-4:4:4";
+        break;
+      case GST_VIDEO_FORMAT_I420_10BE:
+      case GST_VIDEO_FORMAT_I420_10LE:
+        enc->input_bit_depth = 10;
+        enc->colour_format = COLOUR_FORMAT_PLANAR_YUV420;
+        sampling = "YCbCr-4:2:0";
+        break;
+      case GST_VIDEO_FORMAT_I422_10BE:
+      case GST_VIDEO_FORMAT_I422_10LE:
+        enc->input_bit_depth = 10;
+        enc->colour_format = COLOUR_FORMAT_PLANAR_YUV422;
+        sampling = "YCbCr-4:2:2";
+        break;
+      case GST_VIDEO_FORMAT_Y444_10BE:
+      case GST_VIDEO_FORMAT_Y444_10LE:
+        enc->input_bit_depth = 10;
+        enc->colour_format = COLOUR_FORMAT_PLANAR_YUV444_OR_RGB;
+        sampling = "YCbCr-4:4:4";
+        break;
+      case GST_VIDEO_FORMAT_I420_12BE:
+      case GST_VIDEO_FORMAT_I420_12LE:
+        enc->input_bit_depth = 12;
+        enc->colour_format = COLOUR_FORMAT_PLANAR_YUV420;
+        sampling = "YCbCr-4:2:0";
+        break;
+      case GST_VIDEO_FORMAT_I422_12BE:
+      case GST_VIDEO_FORMAT_I422_12LE:
+        enc->input_bit_depth = 12;
+        enc->colour_format = COLOUR_FORMAT_PLANAR_YUV422;
+        sampling = "YCbCr-4:2:2";
+        break;
+      case GST_VIDEO_FORMAT_Y444_12BE:
+      case GST_VIDEO_FORMAT_Y444_12LE:
+        enc->input_bit_depth = 12;
         enc->colour_format = COLOUR_FORMAT_PLANAR_YUV444_OR_RGB;
         sampling = "YCbCr-4:4:4";
         break;
