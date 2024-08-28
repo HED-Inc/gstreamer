@@ -72,26 +72,43 @@ enum
 
 #define DEFAULT_THREADS 0
 
-#if 0
+#define FORMATS_8_BIT "Y444, Y42B, I420"
+
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
-#define FORMAT_I420_10 "I420_10LE"
+#define FORMATS_10_BIT "Y444_10LE, I422_10LE, I420_10LE"
+#define FORMATS_12_BIT "Y444_12LE, I422_12LE, I420_12LE"
+#define VIDEO_FORMAT_I420_10 GST_VIDEO_FORMAT_I420_10LE
+#define VIDEO_FORMAT_I420_12 GST_VIDEO_FORMAT_I420_12LE
+#define VIDEO_FORMAT_I422_10 GST_VIDEO_FORMAT_I422_10LE
+#define VIDEO_FORMAT_I422_12 GST_VIDEO_FORMAT_I422_12LE
+#define VIDEO_FORMAT_Y444_10 GST_VIDEO_FORMAT_Y444_10LE
+#define VIDEO_FORMAT_Y444_12 GST_VIDEO_FORMAT_Y444_12LE
 #else
-#define FORMAT_I420_10 "I420_10BE"
+#define FORMATS_10_BIT "Y444_10BE, I422_10BE, I420_10BE"
+#define FORMATS_12_BIT "Y444_12BE, I422_12BE, I420_12BE"
+#define VIDEO_FORMAT_I420_10 GST_VIDEO_FORMAT_I420_10BE
+#define VIDEO_FORMAT_I420_12 GST_VIDEO_FORMAT_I420_12BE
+#define VIDEO_FORMAT_I422_10 GST_VIDEO_FORMAT_I422_10BE
+#define VIDEO_FORMAT_I422_12 GST_VIDEO_FORMAT_I422_12BE
+#define VIDEO_FORMAT_Y444_10 GST_VIDEO_FORMAT_Y444_10BE
+#define VIDEO_FORMAT_Y444_12 GST_VIDEO_FORMAT_Y444_12BE
 #endif
-#endif
+
+#define SUPPORTED_FORMATS FORMATS_8_BIT ", " FORMATS_10_BIT ", " FORMATS_12_BIT
 
 static GstStaticPadTemplate sink_pad_template =
 GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("image/x-jxsc, alignment = frame, "
         "interlace-mode = progressive, "
-        "sampling = { YCbCr-4:4:4, YCbCr-4:2:2, YCbCr-4:2:0 }, " "depth = 8"));
+        "sampling = { YCbCr-4:4:4, YCbCr-4:2:2, YCbCr-4:2:0 }, "
+        "depth = { 8, 10, 12 }"));
 
 // FIXME: add 4:2:2 and 4:4:4 packed formats
-// FIXME: add 10-bit formats
 // Only handle progressive mode for now
 static GstStaticPadTemplate src_pad_template =
 GST_STATIC_PAD_TEMPLATE ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("video/x-raw, " "format = (string) { Y444, Y42B, I420 },"
+    GST_STATIC_CAPS ("video/x-raw, "    //
+        "format = (string) { " SUPPORTED_FORMATS " },"
         "interlace-mode = progressive, "
         "width = (int) [16, 16384], " "height = (int) [16, 16384], "
         "framerate = (fraction) [0, MAX]"));
@@ -339,9 +356,9 @@ gst_svt_jpeg_xs_dec_init_decoder (GstSvtJpegXsDec * jxsdec,
   }
 
   // Really shouldn't happen, since we specify allowed depth in our sink template
-  if (cfg->bit_depth != 8) {
+  if (cfg->bit_depth != 8 && cfg->bit_depth != 10 && cfg->bit_depth != 12) {
     GST_ELEMENT_ERROR (jxsdec, STREAM, FORMAT, (NULL),
-        ("Image has bit depth of %u, but only a depth of 8 is supported.",
+        ("Image has bit depth of %u, but only a depth of 8, 10 or 12 is supported.",
             cfg->bit_depth));
     return GST_FLOW_NOT_NEGOTIATED;
   }
@@ -350,29 +367,49 @@ gst_svt_jpeg_xs_dec_init_decoder (GstSvtJpegXsDec * jxsdec,
 
   switch (cfg->format) {
     case COLOUR_FORMAT_PLANAR_YUV420:
-      fmt = GST_VIDEO_FORMAT_I420;
+      if (cfg->bit_depth == 8) {
+        fmt = GST_VIDEO_FORMAT_I420;
+      } else if (cfg->bit_depth == 10) {
+        fmt = VIDEO_FORMAT_I420_10;
+      } else if (cfg->bit_depth == 12) {
+        fmt = VIDEO_FORMAT_I420_12;
+      }
       break;
     case COLOUR_FORMAT_PLANAR_YUV422:
-      fmt = GST_VIDEO_FORMAT_Y42B;
+      if (cfg->bit_depth == 8) {
+        fmt = GST_VIDEO_FORMAT_Y42B;
+      } else if (cfg->bit_depth == 10) {
+        fmt = VIDEO_FORMAT_I422_10;
+      } else if (cfg->bit_depth == 12) {
+        fmt = VIDEO_FORMAT_I422_12;
+      }
       break;
       // We rely on external signalling (caps) to know what's what
     case COLOUR_FORMAT_PLANAR_YUV444_OR_RGB:
-      fmt = GST_VIDEO_FORMAT_Y444;
+      if (cfg->bit_depth == 8) {
+        fmt = GST_VIDEO_FORMAT_Y444;
+      } else if (cfg->bit_depth == 10) {
+        fmt = VIDEO_FORMAT_Y444_10;
+      } else if (cfg->bit_depth == 12) {
+        fmt = VIDEO_FORMAT_Y444_12;
+      }
       break;
       // We rely on external signalling (caps) to know what's what
       // case COLOUR_FORMAT_PACKED_YUV444_OR_RGB:
       // FIXME:  fmt = GST_VIDEO_FORMAT_v308;
       //  break;
     default:
-      // Really shouldn't happen, since we specify allowed samplings in our
-      // sink template, although outputting packed or planar is a decoder
-      // choice I suppose.
-      GST_ELEMENT_ERROR (jxsdec, STREAM, FORMAT, (NULL),
-          ("Unsupported pixel format %s.",
-              format_to_format_name (cfg->format)));
-      return GST_FLOW_NOT_NEGOTIATED;
+      break;
   }
 
+  if (fmt == GST_VIDEO_FORMAT_UNKNOWN) {
+    // Really shouldn't happen, since we specify allowed samplings in our
+    // sink template, although outputting packed or planar is a decoder
+    // choice I suppose.
+    GST_ELEMENT_ERROR (jxsdec, STREAM, FORMAT, (NULL),
+        ("Unsupported pixel format %s.", format_to_format_name (cfg->format)));
+    return GST_FLOW_NOT_NEGOTIATED;
+  }
   // Configure output format
   if (jxsdec->output_state)
     gst_video_codec_state_unref (jxsdec->output_state);
