@@ -1544,15 +1544,23 @@ static gboolean
 gst_kms_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 {
   GstKMSSink *self;
-  GstVideoInfo vinfo;
+  GstVideoInfoDmaDrm vinfo_drm = { 0 };
 
   self = GST_KMS_SINK (bsink);
 
-  if (!gst_video_info_from_caps (&vinfo, caps))
-    goto invalid_format;
-  self->vinfo = vinfo;
+  if (gst_video_is_dma_drm_caps (caps)) {
+    if (!gst_video_info_dma_drm_from_caps (&vinfo_drm, caps))
+      goto invalid_format;
+  } else {
+    if (!gst_video_info_from_caps (&vinfo_drm.vinfo, caps))
+      goto invalid_format;
+  }
 
-  if (!gst_kms_sink_calculate_display_ratio (self, &vinfo,
+  /* TODO: This will likely not work with nonlinear DMA_DRM format. More effort
+   * is needed to make use of vinfo_drm.drm_modifier. */
+  self->vinfo = vinfo_drm.vinfo;
+
+  if (!gst_kms_sink_calculate_display_ratio (self, &self->vinfo,
           &GST_VIDEO_SINK_WIDTH (self), &GST_VIDEO_SINK_HEIGHT (self)))
     goto no_disp_ratio;
 
@@ -1570,7 +1578,7 @@ gst_kms_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
     self->pool = NULL;
   }
 
-  if (self->modesetting_enabled && !configure_mode_setting (self, &vinfo))
+  if (self->modesetting_enabled && !configure_mode_setting (self, &self->vinfo))
     goto modesetting_failed;
 
   GST_OBJECT_LOCK (self);
