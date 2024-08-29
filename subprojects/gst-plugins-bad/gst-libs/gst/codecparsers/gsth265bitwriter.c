@@ -1411,7 +1411,7 @@ _h265_slice_bit_writer_ref_pic_list_modification (const GstH265SliceHdr *
   guint i;
   const GstH265RefPicListModification *rpl_mod =
       &slice->ref_pic_list_modification;
-  const guint n = gst_util_ceil_log2 (NumPocTotalCurr);
+  const guint n = g_bit_storage (NumPocTotalCurr);
 
   WRITE_BITS (bw, rpl_mod->ref_pic_list_modification_flag_l0, 1);
 
@@ -1551,7 +1551,7 @@ _h265_bit_writer_slice_header (const GstH265SliceHdr * slice,
         ceil ((gdouble) sps->pic_width_in_luma_samples / (gdouble) CtbSizeY);
     PicSizeInCtbsY = PicWidthInCtbsY * PicHeightInCtbsY;
 
-    n = gst_util_ceil_log2 (PicSizeInCtbsY);
+    n = g_bit_storage (PicSizeInCtbsY);
 
     if (slice->pps->dependent_slice_segments_enabled_flag)
       WRITE_BITS (bw, slice->dependent_slice_segment_flag, 1);
@@ -1584,7 +1584,7 @@ _h265_bit_writer_slice_header (const GstH265SliceHdr * slice,
                 slice->pps->sps, bw, &have_space))
           goto error;
       } else if (sps->num_short_term_ref_pic_sets > 1) {
-        const guint n = gst_util_ceil_log2 (sps->num_short_term_ref_pic_sets);
+        const guint n = g_bit_storage (sps->num_short_term_ref_pic_sets);
 
         if (slice->short_term_ref_pic_set_idx >
             sps->num_short_term_ref_pic_sets - 1)
@@ -1605,8 +1605,7 @@ _h265_bit_writer_slice_header (const GstH265SliceHdr * slice,
         for (i = 0; i < limit; i++) {
           if (i < slice->num_long_term_sps) {
             if (sps->num_long_term_ref_pics_sps > 1) {
-              const guint n =
-                  gst_util_ceil_log2 (sps->num_long_term_ref_pics_sps);
+              const guint n = g_bit_storage (sps->num_long_term_ref_pics_sps);
               WRITE_BITS (bw, slice->lt_idx_sps[i], n);
             }
           } else {
