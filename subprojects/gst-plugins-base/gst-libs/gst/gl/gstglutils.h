@@ -67,6 +67,20 @@ void gst_gl_set_affine_transformation_meta_from_ndc (GstVideoAffineTransformatio
 GST_GL_API
 void gst_gl_multiply_matrix4 (const gfloat * a, const gfloat * b, gfloat * result);
 
+/**
+ * GstGLDrmFormatFlags:
+ * @GST_GL_DRM_FORMAT_INCLUDE_EXTERNAL: include external-only formats
+ * @GST_GL_DRM_FORMAT_LINEAR_ONLY: only include formats with linear modifier
+ */
+typedef enum
+{
+  GST_GL_DRM_FORMAT_INCLUDE_EXTERNAL = 1 << 1,
+  GST_GL_DRM_FORMAT_LINEAR_ONLY = 2 << 1,
+} GstGLDrmFormatFlags;
+
+GST_GL_API
+gboolean gst_gl_dma_buf_transform_gst_formats_to_drm_formats (GstGLContext * context,
+    const GValue * src, GstGLDrmFormatFlags flags, GValue * dst);
 
 G_END_DECLS
 
