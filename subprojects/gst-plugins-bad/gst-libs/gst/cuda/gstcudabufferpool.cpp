@@ -340,6 +340,19 @@ gst_buffer_pool_config_set_cuda_alloc_method (GstStructure * config,
       GST_TYPE_CUDA_MEMORY_ALLOC_METHOD, method, nullptr);
 }
 
+static gboolean
+default_stream_ordered_alloc_enabled (void)
+{
+  static gboolean enabled = TRUE;
+  GST_CUDA_CALL_ONCE_BEGIN {
+    if (g_getenv ("GST_CUDA_DISABLE_STREAM_ORDERED_ALLOC"))
+      enabled = FALSE;
+  }
+  GST_CUDA_CALL_ONCE_END;
+
+  return enabled;
+}
+
 /**
  * gst_buffer_pool_config_get_cuda_stream_ordered_alloc:
  * @config: a buffer pool config
@@ -357,8 +370,7 @@ gst_buffer_pool_config_get_cuda_stream_ordered_alloc (GstStructure * config)
 
   if (!gst_structure_get_boolean (config,
           "cuda-stream-ordered-alloc", &stream_ordered)) {
-    /* Enable stream-ordered alloc by default */
-    return TRUE;
+    return default_stream_ordered_alloc_enabled ();
   }
 
   return stream_ordered;
