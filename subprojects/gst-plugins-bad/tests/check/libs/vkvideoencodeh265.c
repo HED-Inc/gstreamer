@@ -840,7 +840,7 @@ setup_h265_encoder (uint32_t width, uint32_t height, gint vps_id,
     max_tb_size = 4;
 
   max_transform_hierarchy =
-      gst_util_ceil_log2 (max_ctb_size) - gst_util_ceil_log2 (min_tb_size);
+      g_bit_storage (max_ctb_size) - g_bit_storage (min_tb_size);
 
 
   h265_std_ptl.general_profile_idc = profile_idc;
@@ -856,11 +856,11 @@ setup_h265_encoder (uint32_t width, uint32_t height, gint vps_id,
   h265_std_sps.bit_depth_luma_minus8 = 0;       //gst_vulkan_video_get_component_bit_depth (bit_depth_luma) - 8,
   h265_std_sps.bit_depth_chroma_minus8 = 0;     //gst_vulkan_video_get_component_bit_depth (bit_depth_chroma) - 8,
   h265_std_sps.log2_diff_max_min_luma_coding_block_size =
-      gst_util_ceil_log2 (max_ctb_size) - 3;
+      g_bit_storage (max_ctb_size) - 3;
   h265_std_sps.log2_min_luma_transform_block_size_minus2 =
-      gst_util_ceil_log2 (min_tb_size) - 2;
+      g_bit_storage (min_tb_size) - 2;
   h265_std_sps.log2_diff_max_min_luma_transform_block_size =
-      gst_util_ceil_log2 (max_tb_size) - gst_util_ceil_log2 (min_tb_size);
+      g_bit_storage (max_tb_size) - g_bit_storage (min_tb_size);
   h265_std_sps.max_transform_hierarchy_depth_inter = max_transform_hierarchy;
   h265_std_sps.max_transform_hierarchy_depth_intra = max_transform_hierarchy;
   h265_std_sps.conf_win_left_offset = 0;

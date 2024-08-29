@@ -4484,11 +4484,15 @@ gst_bit_storage_uint64 (guint64 in)
  * gst_util_ceil_log2:
  * @v: a #guint32 value.
  *
- * Return a max num of log2.
+ * Calculates the `ceil(log2(v))`. Note that this calculates the wrong result
+ * for `v=1` (`1` instead of `0`) and calculates `32` for `v=0` (actual result
+ * is undefined).
  *
  * Returns: a computed #guint val.
  *
  * Since: 1.24
+ *
+ * Deprecated: Not used anywhere and calculates the wrong value for 1.
  */
 guint
 gst_util_ceil_log2 (guint32 v)
