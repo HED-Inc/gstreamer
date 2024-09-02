@@ -81,24 +81,24 @@ gst_analytics_segmentation_mtd_get_mtd_type (void);
 
 GST_ANALYTICS_META_API
 GstBuffer *
-gst_analytics_segmentation_mtd_get_mask (GstAnalyticsSegmentationMtd * handle,
-    gint * masks_loc_x, gint * masks_loc_y, guint * masks_loc_w, guint *
+gst_analytics_segmentation_mtd_get_mask (const GstAnalyticsSegmentationMtd *
+    handle, gint * masks_loc_x, gint * masks_loc_y, guint * masks_loc_w, guint *
     masks_loc_h);
 
 GST_ANALYTICS_META_API
 gboolean
-gst_analytics_segmentation_mtd_get_region_index (GstAnalyticsSegmentationMtd *
-    handle, gsize * index, guint id);
+gst_analytics_segmentation_mtd_get_region_index (
+    const GstAnalyticsSegmentationMtd * handle, gsize * index, guint id);
 
 GST_ANALYTICS_META_API
 guint
-gst_analytics_segmentation_mtd_get_region_id (GstAnalyticsSegmentationMtd *
-    handle, gsize index);
+gst_analytics_segmentation_mtd_get_region_id (
+    const GstAnalyticsSegmentationMtd * handle, gsize index);
 
 GST_ANALYTICS_META_API
 gsize
-gst_analytics_segmentation_mtd_get_region_count (GstAnalyticsSegmentationMtd *
-    handle);
+gst_analytics_segmentation_mtd_get_region_count (
+    const GstAnalyticsSegmentationMtd * handle);
 
 GST_ANALYTICS_META_API
 gboolean
