@@ -525,6 +525,22 @@ must have a #GstVideoMeta attached</doc>
               <type name="guint" c:type="guint"/>
             </array>
           </parameter>
+          <parameter name="masks_loc_x" transfer-ownership="none">
+            <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Left coordinate of the rectangle corresponding to the masks in the image.</doc>
+            <type name="gint" c:type="gint"/>
+          </parameter>
+          <parameter name="masks_loc_y" transfer-ownership="none">
+            <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Top coordinate of the rectangle corresponding to the masks in the image.</doc>
+            <type name="gint" c:type="gint"/>
+          </parameter>
+          <parameter name="masks_loc_w" transfer-ownership="none">
+            <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Width of the rectangle corresponding to the masks in the image.</doc>
+            <type name="guint" c:type="guint"/>
+          </parameter>
+          <parameter name="masks_loc_h" transfer-ownership="none">
+            <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Height of the rectangle corresponding to the masks in the image.</doc>
+            <type name="guint" c:type="guint"/>
+          </parameter>
           <parameter name="segmentation_mtd" direction="out" caller-allocates="1" transfer-ownership="none">
             <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Handle update with newly added segmenation meta.</doc>
             <type name="SegmentationMtd" c:type="GstAnalyticsSegmentationMtd*"/>
@@ -1010,8 +1026,28 @@ identified by @id is stored.</doc>
         <parameters>
           <instance-parameter name="handle" transfer-ownership="none">
             <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Instance</doc>
-            <type name="SegmentationMtd" c:type="GstAnalyticsSegmentationMtd*"/>
+            <type name="SegmentationMtd" c:type="const GstAnalyticsSegmentationMtd*"/>
           </instance-parameter>
+          <parameter name="masks_loc_x" direction="out" caller-allocates="1" transfer-ownership="none">
+            <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Left coordinate of the
+rectangle corresponding to the mask in the image.</doc>
+            <type name="gint" c:type="gint*"/>
+          </parameter>
+          <parameter name="masks_loc_y" direction="out" caller-allocates="1" transfer-ownership="none">
+            <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Top coordinate of the
+rectangle corresponding to the mask in the image.</doc>
+            <type name="gint" c:type="gint*"/>
+          </parameter>
+          <parameter name="masks_loc_w" direction="out" caller-allocates="1" transfer-ownership="none">
+            <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Width of the rectangle
+corresponding to the mask in the image.</doc>
+            <type name="guint" c:type="guint*"/>
+          </parameter>
+          <parameter name="masks_loc_h" direction="out" caller-allocates="1" transfer-ownership="none">
+            <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Height of the rectangle
+corresponding to the mask in the image.</doc>
+            <type name="guint" c:type="guint*"/>
+          </parameter>
         </parameters>
       </method>
       <method name="get_region_count" c:identifier="gst_analytics_segmentation_mtd_get_region_count" version="1.26">
@@ -1024,7 +1060,7 @@ identified by @id is stored.</doc>
         <parameters>
           <instance-parameter name="handle" transfer-ownership="none">
             <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Instance</doc>
-            <type name="SegmentationMtd" c:type="GstAnalyticsSegmentationMtd*"/>
+            <type name="SegmentationMtd" c:type="const GstAnalyticsSegmentationMtd*"/>
           </instance-parameter>
         </parameters>
       </method>
@@ -1040,7 +1076,7 @@ gst_analytics_segmentation_mtd_get_region_count()</doc>
         <parameters>
           <instance-parameter name="handle" transfer-ownership="none">
             <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Instance</doc>
-            <type name="SegmentationMtd" c:type="GstAnalyticsSegmentationMtd*"/>
+            <type name="SegmentationMtd" c:type="const GstAnalyticsSegmentationMtd*"/>
           </instance-parameter>
           <parameter name="index" transfer-ownership="none">
             <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Region index</doc>
@@ -1058,7 +1094,7 @@ gst_analytics_segmentation_mtd_get_region_count()</doc>
         <parameters>
           <instance-parameter name="handle" transfer-ownership="none">
             <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Instance</doc>
-            <type name="SegmentationMtd" c:type="GstAnalyticsSegmentationMtd*"/>
+            <type name="SegmentationMtd" c:type="const GstAnalyticsSegmentationMtd*"/>
           </instance-parameter>
           <parameter name="index" direction="out" caller-allocates="1" transfer-ownership="none">
             <doc xml:space="preserve" filename="../subprojects/gst-plugins-bad/gst-libs/gst/analytics/gstanalyticssegmentationmtd.c">Region index</doc>
