@@ -82,6 +82,10 @@ GST_GL_API
 gboolean gst_gl_dma_buf_transform_gst_formats_to_drm_formats (GstGLContext * context,
     const GValue * src, GstGLDrmFormatFlags flags, GValue * dst);
 
+GST_GL_API
+gboolean gst_gl_dma_buf_transform_drm_formats_to_gst_formats (GstGLContext * context,
+    const GValue * src, GstGLDrmFormatFlags flags, GValue * dst);
+
 G_END_DECLS
 
 #endif /* __GST_GL_UTILS_H__ */

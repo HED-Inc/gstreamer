@@ -1038,3 +1038,102 @@ gst_gl_dma_buf_transform_gst_formats_to_drm_formats (GstGLContext * context,
 
   return TRUE;
 }
+
+static GstVideoFormat
+_get_video_format_from_drm_format (GstGLContext * context,
+    const gchar * drm_format, GstGLDrmFormatFlags flags)
+{
+  GstVideoFormat gst_format;
+  guint32 fourcc;
+  guint64 modifier;
+
+  fourcc = gst_video_dma_drm_fourcc_from_string (drm_format, &modifier);
+  if (fourcc == DRM_FORMAT_INVALID)
+    return GST_VIDEO_FORMAT_UNKNOWN;
+
+  if (flags & GST_GL_DRM_FORMAT_LINEAR_ONLY && modifier != DRM_FORMAT_MOD_LINEAR)
+    return GST_VIDEO_FORMAT_UNKNOWN;
+
+  gst_format = gst_video_dma_drm_fourcc_to_format (fourcc);
+  if (gst_format == GST_VIDEO_FORMAT_UNKNOWN)
+    return GST_VIDEO_FORMAT_UNKNOWN;
+
+  if (!gst_gl_context_egl_format_supports_modifier (context, fourcc, modifier,
+      flags & GST_GL_DRM_FORMAT_INCLUDE_EXTERNAL))
+    return GST_VIDEO_FORMAT_UNKNOWN;
+
+  return gst_format;
+}
+
+/**
+ * gst_gl_dma_buf_transform_drm_formats_to_gst_formats:
+ * @context: (transfer none): a #GstContext
+ * @src: value of "drm-format" field in #GstCaps as #GValue
+ * @flags: transformation flags
+ * @dst: (inout): empty destination #GValue
+ *
+ * Given the DRM formats in @src #GValue, collect corresponding GST formats to
+ * @dst #GValue.
+ *
+ * Returns: whether any valid GST video formats were found and stored in @dst
+ *
+ * Since: 1.26
+ */
+gboolean
+gst_gl_dma_buf_transform_drm_formats_to_gst_formats (GstGLContext * context,
+    const GValue * src, GstGLDrmFormatFlags flags, GValue * dst)
+{
+  GstVideoFormat gst_format;
+  GArray *all_formats = NULL;
+  guint i;
+
+  all_formats = g_array_new (FALSE, FALSE, sizeof (GstVideoFormat));
+
+  if (G_VALUE_HOLDS_STRING (src)) {
+    gst_format = _get_video_format_from_drm_format (context,
+        g_value_get_string (src), flags);
+
+    if (gst_format != GST_VIDEO_FORMAT_UNKNOWN)
+      g_array_append_val (all_formats, gst_format);
+  } else if (GST_VALUE_HOLDS_LIST (src)) {
+    guint num_values = gst_value_list_get_size (src);
+
+    for (i = 0; i < num_values; i++) {
+      const GValue *val = gst_value_list_get_value (src, i);
+
+      gst_format = _get_video_format_from_drm_format (context,
+          g_value_get_string (val), flags);
+      if (gst_format == GST_VIDEO_FORMAT_UNKNOWN)
+        continue;
+
+      g_array_append_val (all_formats, gst_format);
+    }
+  }
+
+  if (all_formats->len == 0) {
+    g_array_unref (all_formats);
+    return FALSE;
+  }
+
+  if (all_formats->len == 1) {
+    g_value_init (dst, G_TYPE_STRING);
+    gst_format = g_array_index (all_formats, GstVideoFormat, 0);
+    g_value_set_string (dst, gst_video_format_to_string (gst_format));
+  } else {
+    GValue item = G_VALUE_INIT;
+
+    gst_value_list_init (dst, all_formats->len);
+
+    for (i = 0; i < all_formats->len; i++) {
+      g_value_init (&item, G_TYPE_STRING);
+      gst_format = g_array_index (all_formats, GstVideoFormat, i);
+      g_value_set_string (&item, gst_video_format_to_string (gst_format));
+      gst_value_list_append_value (dst, &item);
+      g_value_unset (&item);
+    }
+  }
+
+  g_array_unref (all_formats);
+
+  return TRUE;
+}
