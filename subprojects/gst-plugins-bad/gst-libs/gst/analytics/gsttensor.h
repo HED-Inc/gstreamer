@@ -1,8 +1,8 @@
 /*
- * GStreamer gstreamer-tensormeta
- * Copyright (C) 2023 Collabora Ltd
+ * GStreamer gstreamer-tensor
+ * Copyright (C) 2024 Collabora Ltd
  *
- * gsttensormeta.h
+ * gsttensor.h
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -19,10 +19,16 @@
  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
  * Boston, MA 02110-1301, USA.
  */
-#ifndef __GST_TENSOR_META_H__
-#define __GST_TENSOR_META_H__
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#ifndef __GST_TENSOR_H__
+#define __GST_TENSOR_H__
 
 #include <gst/gst.h>
+#include <gst/analytics/analytics-meta-prelude.h>
 
 /**
  * GstTensorDataType:
@@ -44,7 +50,7 @@
  *
  * Describe the type of data contain in the tensor.
  *
- * Since: 1.24
+ * Since: 1.26
  */
 typedef enum _GstTensorDataType
 {
@@ -64,61 +70,61 @@ typedef enum _GstTensorDataType
   GST_TENSOR_TYPE_BFLOAT16,
 } GstTensorDataType;
 
+/**
+ * GstTensorDimOrder:
+ * @GST_TENSOR_DIM_ORDER_ROW_MAJOR elements along a row are consecutive in memory
+ * @GST_TENSOR_DIM_ORDER_COL_MAJOR elements along a column are consecutive in memory
+ *
+ * Indicate to read tensor from memory in row-major or column-major.
+ *
+ * Since: 1.26
+ */
+typedef enum _GstTensorDimOrder
+{
+  GST_TENSOR_DIM_ORDER_ROW_MAJOR,
+  GST_TENSOR_DIM_ORDER_COL_MAJOR
+} GstTensorDimOrder;
+
+/**
+ * GstTensorLayout:
+ * @GST_TENSOR_LAYOUT_STRIDED indicate the tensor is stored in a dense format in memory
+ *
+ * Indicate tensor storage in memory.
+ *
+ * Since: 1.26
+ */
+typedef enum _GstTensorLayout
+{
+  GST_TENSOR_LAYOUT_STRIDED
+} GstTensorLayout;
 
 /**
  * GstTensor:
- *
  * @id: semantically identify the contents of the tensor
  * @num_dims: number of tensor dimensions
  * @dims: tensor dimensions
+ * @dims_order: Indicate tensor elements layout in memory.
+ * @layout: Indicate tensor layout
  * @type: #GstTensorDataType of tensor data
+ * @batch_size: Model batch size
  * @data: #GstBuffer holding tensor data
  *
- * Since: 1.24
+ * Hold tensor data
+ *
+ * Since: 1.26
  */
 typedef struct _GstTensor
 {
   GQuark id;
-  gint num_dims;
-  int64_t *dims;
+  gsize num_dims;
+  gsize *dims;
+  GstTensorDimOrder dims_order;
+  GstTensorLayout layout;
   GstTensorDataType data_type;
+  gsize batch_size;
   GstBuffer *data;
 } GstTensor;
 
 #define GST_TENSOR_MISSING_ID -1
 
-/**
- * GstTensorMeta:
- *
- * @meta base GstMeta
- * @num_tensors number of tensors
- * @tensor @ref GstTensor for each tensor
- * @batch_size model batch size
- *
- * Since: 1.24
- */
-typedef struct _GstTensorMeta
-{
-  GstMeta meta;
-
-  gint num_tensors;
-  GstTensor *tensor;
-  int batch_size;
-} GstTensorMeta;
-
-G_BEGIN_DECLS
-
-#define GST_TENSOR_META_API_TYPE \
-  (gst_tensor_meta_api_get_type())
-
-#define GST_TENSOR_META_INFO \
-  (gst_tensor_meta_get_info())
-
-
-GType gst_tensor_meta_api_get_type (void);
-const GstMetaInfo *gst_tensor_meta_get_info (void);
-gint gst_tensor_meta_get_index_from_id(GstTensorMeta *meta, GQuark id);
-
-G_END_DECLS
-
-#endif
+#endif /* __GST_TENSOR_H__ */

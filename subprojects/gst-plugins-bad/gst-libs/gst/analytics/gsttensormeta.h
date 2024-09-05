@@ -1,7 +1,8 @@
-/* GStreamer
+/*
+ * GStreamer gstreamer-tensormeta
  * Copyright (C) 2023 Collabora Ltd
  *
- * analytics.h
+ * gsttensormeta.h
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -19,18 +20,51 @@
  * Boston, MA 02110-1301, USA.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
-
-#ifndef __ANALYTICS_H__
-#define __ANALYTICS_H__
+#ifndef __GST_TENSOR_META_H__
+#define __GST_TENSOR_META_H__
 
 #include <gst/gst.h>
 #include <gst/analytics/analytics-meta-prelude.h>
-#include <gst/analytics/gstanalyticsmeta.h>
-#include <gst/analytics/gstanalyticsclassificationmtd.h>
-#include <gst/analytics/gstanalyticsobjectdetectionmtd.h>
-#include <gst/analytics/gstanalyticsobjecttrackingmtd.h>
 #include <gst/analytics/gsttensor.h>
-#include <gst/analytics/gsttensormeta.h>
 
-#endif /* __ANALYTICS_H__ */
+/**
+ * GstTensorMeta:
+ * @meta base GstMeta
+ * @num_tensors number of tensors
+ * @tensor @ref GstTensor for each tensor
+ * @batch_size model batch size
+ *
+ * Since: 1.26
+ */
+typedef struct _GstTensorMeta
+{
+  GstMeta meta;
+
+  gsize num_tensors;
+  GstTensor *tensor;
+} GstTensorMeta;
+
+G_BEGIN_DECLS
+
+#define GST_TENSOR_META_API_TYPE \
+  (gst_tensor_meta_api_get_type())
+
+#define GST_TENSOR_META_INFO \
+  (gst_tensor_meta_get_info())
+
+GST_ANALYTICS_META_API
+GType gst_tensor_meta_api_get_type (void);
+
+GST_ANALYTICS_META_API
+const GstMetaInfo *gst_tensor_meta_get_info (void);
+
+GST_ANALYTICS_META_API
+gint gst_tensor_meta_get_index_from_id(GstTensorMeta *meta, GQuark id);
+
+G_END_DECLS
+
+#endif
