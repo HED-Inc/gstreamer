@@ -1667,6 +1667,8 @@ gst_va_compositor_class_init (gpointer g_class, gpointer class_data)
    * GstVaCompositor:interpolation-method:
    *
    * Sets the interpolation method algorithm to use when resizing.
+   *
+   * Since: 1.26
    */
   properties[PROP_INTERPOLATION_METHOD] =
       g_param_spec_enum ("interpolation-method", "Interpolation Method",
