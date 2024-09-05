@@ -1,9 +1,9 @@
 include:
   - project: 'freedesktop/ci-templates'
-    ref: "801093be0b88f23c8dbabe9cfce7134548f7ccdc"
+    ref: "3826695f80807d8a4d999f6b6efb3d405d708db9"
     file: '/templates/fedora.yml'
   - project: 'freedesktop/ci-templates'
-    ref: "801093be0b88f23c8dbabe9cfce7134548f7ccdc"
+    ref: "3826695f80807d8a4d999f6b6efb3d405d708db9"
     file: '/templates/debian.yml'
   ###
   # IMPORTANT
@@ -130,11 +130,20 @@ trigger:
 .fedora image:
   variables:
     CCACHE_DIR: '/cache/gstreamer/gstreamer/ccache/'
-    FDO_BASE_IMAGE: 'registry.fedoraproject.org/fedora-toolbox:34'
-    FDO_DISTRIBUTION_VERSION: '34'
+    FDO_DISTRIBUTION_VERSION: '40'
     FDO_REPO_SUFFIX: "$FEDORA_AMD64_SUFFIX"
     FDO_DISTRIBUTION_TAG: "$FEDORA_TAG-$GST_UPSTREAM_BRANCH"
     FDO_DISTRIBUTION_EXEC: 'GIT_BRANCH=$CI_COMMIT_REF_NAME GIT_URL=$CI_REPOSITORY_URL bash ci/docker/fedora/prepare.sh'
+
+.fedora fluster image:
+  variables:
+    CCACHE_DIR: !reference [".fedora image", "variables", CCACHE_DIR]
+    FDO_DISTRIBUTION_VERSION: !reference [".fedora image", "variables", FDO_DISTRIBUTION_VERSION]
+    FDO_REPO_SUFFIX: !reference [".fedora image", "variables", FDO_REPO_SUFFIX]
+    FDO_DISTRIBUTION_TAG: "fluster-$FEDORA_TAG-$GST_UPSTREAM_BRANCH"
+    FDO_DISTRIBUTION_EXEC: "bash ./ci/docker/fedora/virtme-fluster-setup.sh"
+    # Base the fluster image on top of the main fedora build image
+    FDO_BASE_IMAGE: "$CI_REGISTRY_IMAGE/$FDO_REPO_SUFFIX:$FEDORA_TAG-$GST_UPSTREAM_BRANCH"
 
 fedora amd64 docker:
   extends:
@@ -145,6 +154,31 @@ fedora amd64 docker:
   # Note: assumption is that placeholder jobs run on a packet runner
   # (which has faster network connectivity to the registry).
   tags: [ 'placeholder-job' ]
+
+fedora amd64 docker fluster:
+  extends:
+    - '.fedora fluster image'
+    - '.fdo.container-build@fedora'
+  stage: 'preparation'
+  needs: ["fedora amd64 docker"]
+  # Note: assumption is that placeholder jobs run on a packet runner
+  # (which has faster network connectivity to the registry).
+  tags: [ 'placeholder-job' ]
+
+# Build a toolbox specific image to workaround ci-templates
+fedora amd64 toolbox:
+  image: quay.io/freedesktop.org/ci-templates:container-build-base-2024-01-31.0
+  stage: 'preparation'
+  needs: ["fedora amd64 docker"]
+  # Note: assumption is that placeholder jobs run on a packet runner
+  # (which has faster network connectivity to the registry).
+  tags: [ 'placeholder-job' ]
+  variables:
+    GST_CI_IMAGE: !reference [".build fedora x86_64", "variables", FDO_DISTRIBUTION_IMAGE]
+    FDO_DISTRIBUTION_TAG: !reference [".fedora image", "variables", FDO_DISTRIBUTION_TAG]
+    FDO_REPO_SUFFIX: !reference [".fedora image", "variables", FDO_REPO_SUFFIX]
+  script:
+    - bash ci/scripts/build-toolbox-image.sh $GST_CI_IMAGE $FDO_DISTRIBUTION_TAG $GST_UPSTREAM_BRANCH
 
 .debian image:
   variables:
@@ -412,7 +446,17 @@ build fedora gcc:
         #
         # Disabling gstreamer-sharp tests because they download things as part of configure with
         # nuget which frequently fails on the CI (possibly because we're hammering the site)
-        MESON_ARGS: "${DEFAULT_MESON_ARGS} -Dvaapi=disabled -Dpython=auto -Dgst-editing-services:python=disabled -Dintrospection=disabled -Ddoc=disabled -Dgstreamer-sharp:tests=disabled"
+        #
+        # Disabling building both qt5 and qt6 when doing static builds since we can only link against one
+        MESON_ARGS: >-
+          ${DEFAULT_MESON_ARGS}
+          -Dvaapi=disabled
+          -Dpython=auto
+          -Dgst-editing-services:python=disabled
+          -Dintrospection=disabled
+          -Ddoc=disabled
+          -Dgstreamer-sharp:tests=disabled
+          -Dqt5=disabled -Dqt6=enabled
 
 build fedora clang:
   extends: '.build fedora x86_64'
@@ -425,7 +469,6 @@ build fedora clang:
         BUILD_GST_DEBUG: ["-Dgstreamer:gst_debug=true", "-Dgstreamer:gst_debug=false"]
         MESON_ARGS: >-
           ${SIMPLE_BUILD}
-          --force-fallback-for=glib
 
       - BUILD_TYPE: ["--default-library=static"]
         BUILD_GST_DEBUG: ["-Dgstreamer:gst_debug=true", "-Dgstreamer:gst_debug=false"]
@@ -434,6 +477,8 @@ build fedora clang:
         #
         # Disabling gstreamer-sharp tests because they download things as part of configure with
         # nuget which frequently fails on the CI (possibly because we're hammering the site)
+        #
+        # Disabling building both qt5 and qt6 when doing static builds since we can only link against one
         MESON_ARGS: >-
           ${DEFAULT_MESON_ARGS}
           -Dvaapi=disabled
@@ -441,7 +486,7 @@ build fedora clang:
           -Dpython=disabled
           -Ddoc=disabled
           -Dgstreamer-sharp:tests=disabled
-          --force-fallback-for=glib
+          -Dqt5=disabled -Dqt6=enabled
 
 build debian x86_64:
   extends:
@@ -749,8 +794,11 @@ gstreamer-full static build:
   stage: 'build'
   variables:
     BUILD_TYPE: "--default-library=static"
+    # Disabling building both qt5 and qt6 when doing static builds since we can only link against one
     MESON_ARGS: >-
       -Ddoc=disabled
+      -Dqt5=disabled -Dqt6=enabled
+
     SUBPROJECTS_CACHE_DIR: "/subprojects"
   script:
   - $CI_PROJECT_DIR/ci/scripts/build.sh build/
@@ -786,8 +834,11 @@ gstreamer-full-minimal static build:
   - ls -l build/libgstreamer-full-1.0.so
 
 # v4l2-stateless-decoders tests
-fluster v4l2-stateless on visl:
-  extends: 'gstreamer-full static build'
+# Disabled for now due to failures with qemu on fedora 40
+.fluster v4l2-stateless on visl:
+  extends:
+    - '.fedora fluster image'
+    - '.fdo.suffixed-image@fedora'
   stage: 'test'
   variables:
     BUILD_GST_DEBUG: '-Dgstreamer:gst_debug=false'

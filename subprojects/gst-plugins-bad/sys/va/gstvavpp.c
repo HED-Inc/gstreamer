@@ -2186,6 +2186,7 @@ _install_static_properties (GObjectClass * klass)
    *
    * Sets the interpolation method algorithm to use when resizing.
    *
+   * Since: 1.26
    */
   PROPERTIES (PROP_INTERPOLATION_METHOD) =
       g_param_spec_enum ("interpolation-method", "Interpolation Method",
