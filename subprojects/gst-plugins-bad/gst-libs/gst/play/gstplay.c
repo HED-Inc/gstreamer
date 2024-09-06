@@ -3424,6 +3424,7 @@ gst_play_set_mute (GstPlay * self, gboolean val)
  * Returns: (transfer full): The internal playbin instance.
  *
  * The caller should free it with g_object_unref()
+ * Note: Application code should not access the pipeline bus.
  * Since: 1.20
  */
 GstElement *
