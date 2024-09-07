@@ -15,10 +15,10 @@ normal buffers.
 
 Currently, this is done by putting a 'streamheader' value on the caps.
 'streamheader' is a GST_TYPE_ARRAY of GstBuffer, ie. an ordered list of
-buffers.
+buffers. Or it can be a single GstBuffer (using GST_TYPE_BUFFER)
 
 The buffers themselves still get pushed as normal buffers, but with the
-IN_CAPS flag set.  This allows elements that do not know about streamheader
+HEADER flag set.  This allows elements that do not know about streamheader
 to still function correctly (ie. filesink and others)
 
 It is of course important that these streamheader buffers are not sent twice
@@ -26,24 +26,25 @@ It is of course important that these streamheader buffers are not sent twice
 buffers).
 
 So, an element that is aware of streamheader in the caps should probably best
-drop all incoming IN_CAPS buffers.
+drop all incoming HEADER buffers that are also part of the streamheader field
+in the caps.
 
 Rules for sending streamheaders:
-- all streamheader buffers should have IN_CAPS set
+- all streamheader buffers should have the HEADER flag set
 - from this list of streamheader buffers, a "streamheader" caps field should
   be created as a GST_TYPE_ARRAY of GstBuffer.  This should be done by
-  copying the buffers.
+  copying or referencing the buffers. If there is a single buffer, it can
+  be attached directly using GST_TYPE_BUFFER
   (the only important thing about the buffers in this list is the data;
    other attributes of the buffers get ignored)
-- each of these buffers should then have these caps set on them.
 - when all streamheader buffers are collected in the element, pad caps should
   be set, including this streamheader
 - streamheader buffers should be sent consecutively, and before any of the
-  data (non-IN_CAPS) buffers they apply to.  If necessary, the element
-  should internally queue non-IN_CAPS buffers until the streamheaders
+  data (non-HEADER) buffers they apply to.  If necessary, the element
+  should internally queue non-HEADER buffers until the streamheaders
   are completely assembled.
 - when new streamheader buffers need to be pushed out, this process is
-  repeated.  Receiving a new IN_CAPS buffer after a non-IN_CAPS buffer
+  repeated.  Receiving a new HEADER buffer after a non-HEADER buffer
   signifies resetting streamheader, as does the new set_caps with different
   streamheader right before. (FIXME: it's probably better to explicitly
   have an event/buffer that clears streamheaders; consider the case of
@@ -53,20 +54,53 @@ Rules for sending streamheaders:
   ones)
 
 Elements that can send streamheader caps:
-- vorbisenc
-- theoraenc
-- gdppay
+  Vorbis/Theora/FLAC/Speex encoders:
+    - vorbisenc
+    - theoraenc
+    - flacenc
+    - speexenc
+  Demuxers that output Vorbis/Theora/FLAC/Speex:
+    - oggdemux
+    - flvdemux
+    - qtdemux
+  Demuxers that output H.264 bytestream:
+    - asfdemux
+  Muxers that create streamable containers
+    - oggparse
+    - asfmux
+    - mpegtsmux
+    - flvmux
+    - qtmux
+  Vòrbis/Theora RTP payloaders
+    - rtptheorapay
+    - rtpvorbispay
 
 Elements that can receive streamheader caps:
-- multifdsink
+  Network sinks:
+    - multifdsink
+    - multisocketsink
+    - multifilesink
+    - shmsink
+    - srtsink
+    - rtmpsink
+    - rtmp2sink
+  Vorbis/Theora/FLAC/Speex/Opus decoders:
+    - amcaudiodec
+    - opusdec
+    - theoradec
+    - vorbisdec
+    - flacdec
+    - speexdec
 
-Elements that can receive and send streamheader caps:
+Elements that can receive and send streamheader caps, those consume
+Vorbis/Theora/FLAC/Speex/Opus, and output a streamable container
 - oggmux
+- gdppay
+- theoraparse
+- matroskamux
 
 Elements that could/should use this:
 - ffenc_mpeg4 (currently uses/sets codec_data)
-- theoradec, vorbisdec (currently only look at incoming buffers)
-- oggdemux
 
 FUTURE PLANS
 ------------
