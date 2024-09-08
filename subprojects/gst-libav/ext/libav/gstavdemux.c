@@ -69,6 +69,8 @@ struct _GstFFMpegDemux
   AVFormatContext *context;
   /* set while avformat_open_input() is called */
   gboolean opening;
+  /* global tags */
+  GstTagList *tags, *upstream_tags;
 
   GstFFStream *streams[MAX_STREAMS];
 
@@ -345,6 +347,7 @@ gst_ffmpegdemux_close (GstFFMpegDemux * demux)
   }
   demux->videopads = 0;
   demux->audiopads = 0;
+  gst_clear_tag_list (&demux->tags);
 
   /* close demuxer context from ffmpeg */
   if (demux->seekable)
@@ -1044,6 +1047,7 @@ gst_ffmpegdemux_get_stream (GstFFMpegDemux * demux, AVStream * avstream)
     if (stream->tags == NULL)
       stream->tags = gst_tag_list_new_empty ();
 
+    gst_tag_list_set_scope (stream->tags, GST_TAG_SCOPE_STREAM);
     gst_tag_list_add (stream->tags, GST_TAG_MERGE_REPLACE,
         (ctx->codec_type == AVMEDIA_TYPE_VIDEO) ?
         GST_TAG_VIDEO_CODEC : GST_TAG_AUDIO_CODEC, codec, NULL);
@@ -1222,7 +1226,7 @@ gst_ffmpegdemux_open (GstFFMpegDemux * demux)
   GstFFMpegDemuxClass *oclass =
       (GstFFMpegDemuxClass *) G_OBJECT_GET_CLASS (demux);
   gint res, n_streams, i;
-  GstTagList *tags;
+  GstTagList *tags = NULL;
   GstEvent *event;
   GList *cached_events;
   GstQuery *query;
@@ -1330,9 +1334,22 @@ gst_ffmpegdemux_open (GstFFMpegDemux * demux)
   }
 
   /* grab the global tags */
-  tags = gst_ffmpeg_metadata_to_tag_list (demux->context->metadata);
-  if (tags) {
-    GST_INFO_OBJECT (demux, "global tags: %" GST_PTR_FORMAT, tags);
+  demux->tags = gst_ffmpeg_metadata_to_tag_list (demux->context->metadata);
+  if (demux->tags) {
+    gst_tag_list_set_scope (demux->tags, GST_TAG_SCOPE_GLOBAL);
+    GST_INFO_OBJECT (demux, "global tags: %" GST_PTR_FORMAT, demux->tags);
+
+    if (demux->upstream_tags) {
+      tags =
+          gst_tag_list_merge (demux->upstream_tags, demux->tags,
+          GST_TAG_MERGE_REPLACE);
+      if (gst_tag_list_get_scope (tags) != GST_TAG_SCOPE_GLOBAL) {
+        tags = gst_tag_list_make_writable (tags);
+        gst_tag_list_set_scope (tags, GST_TAG_SCOPE_GLOBAL);
+      }
+    } else {
+      tags = gst_tag_list_ref (demux->tags);
+    }
   }
 
   /* now handle the stream tags */
@@ -1724,6 +1741,27 @@ gst_ffmpegdemux_sink_event (GstPad * sinkpad, GstObject * parent,
       GST_LOG_OBJECT (demux, "dropping %s event", GST_EVENT_TYPE_NAME (event));
       gst_event_unref (event);
       goto done;
+    case GST_EVENT_TAG:{
+      GstTagList *tags;
+      guint32 seqnum;
+
+      gst_event_parse_tag (event, &tags);
+      gst_tag_list_replace (&demux->upstream_tags, tags);
+
+      seqnum = gst_event_get_seqnum (event);
+      gst_event_unref (event);
+      tags =
+          gst_tag_list_merge (demux->upstream_tags, demux->tags,
+          GST_TAG_MERGE_REPLACE);
+      if (gst_tag_list_get_scope (tags) != GST_TAG_SCOPE_GLOBAL) {
+        tags = gst_tag_list_make_writable (tags);
+        gst_tag_list_set_scope (tags, GST_TAG_SCOPE_GLOBAL);
+      }
+      event = gst_event_new_tag (tags);
+      gst_event_set_seqnum (event, seqnum);
+
+      /* fall through */
+    }
     default:
       /* for a serialized event, wait until an earlier data is gone,
        * though this is no guarantee as to when task is done with it.
@@ -1973,6 +2011,7 @@ gst_ffmpegdemux_change_state (GstElement * element, GstStateChange transition)
       demux->cached_events = NULL;
       demux->have_group_id = FALSE;
       demux->group_id = G_MAXUINT;
+      gst_clear_tag_list (&demux->upstream_tags);
       break;
     default:
       break;
