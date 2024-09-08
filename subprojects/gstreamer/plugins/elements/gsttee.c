@@ -685,12 +685,23 @@ gst_tee_query_allocation (const GValue * item, GValue * ret, gpointer user_data)
     /* Afterward, aggregate the common params */
     if (gst_query_find_allocation_meta (ctx->query, api, &ctx_index)) {
       const GstStructure *ctx_param;
+      GstStructure *aggregated_params = NULL;
 
       gst_query_parse_nth_allocation_meta (ctx->query, ctx_index, &ctx_param);
 
       /* Keep meta which has no params */
       if (ctx_param == NULL && param == NULL)
         continue;
+
+      if (gst_meta_api_type_aggregate_params (api, &aggregated_params,
+              ctx_param, param)) {
+        gst_query_add_allocation_meta (query, api, aggregated_params);
+        gst_query_remove_nth_allocation_meta (query, ctx_index);
+
+        if (aggregated_params)
+          gst_structure_free (aggregated_params);
+        continue;
+      }
 
       GST_DEBUG_OBJECT (ctx->tee, "Dropping allocation meta %s",
           g_type_name (api));

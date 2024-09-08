@@ -4757,6 +4757,61 @@ unsupported_format:
 }
 
 /**
+ * gst_v4l2_object_set_compose:
+ * @obj: the object
+ * @compose_rect: the region to compose
+ *
+ * Compose the video data to the regions specified in the @compose_rect.
+ *
+ * For capture devices, this compose the image sensor / video stream provided by
+ * the V4L2 device. The composing area specifies which part of the buffer is 
+ * actually written to by the hardware.
+ * For output devices, this compose the memory buffer that GStreamer passed to
+ * the V4L2 device. The application may select the part of display where the
+ * image should be displayed. The size and position of such a window is
+ * controlled by the compose target.
+ *
+ * The compose_rect may be modified by the V4L2 device to a region that
+ * fulfills H/W requirements.
+ *
+ * Returns: %TRUE on success, %FALSE on failure.
+ */
+static gboolean
+gst_v4l2_object_set_compose (GstV4l2Object * obj,
+    struct v4l2_rect *compose_rect)
+{
+  struct v4l2_selection sel = { 0 };
+
+  GST_V4L2_CHECK_OPEN (obj);
+
+  sel.type = obj->type;
+  sel.target = V4L2_SEL_TGT_COMPOSE;
+  sel.flags = 0;
+  sel.r = *compose_rect;
+
+  GST_DEBUG_OBJECT (obj->dbg_obj,
+      "Desired composing left %u, top %u, size %ux%u", sel.r.left, sel.r.top,
+      sel.r.width, sel.r.height);
+
+  if (obj->ioctl (obj->video_fd, VIDIOC_S_SELECTION, &sel) < 0) {
+    if (errno != ENOTTY) {
+      GST_WARNING_OBJECT (obj->dbg_obj,
+          "Failed to set compose rectangle with VIDIOC_S_SELECTION: %s",
+          g_strerror (errno));
+      return FALSE;
+    }
+  }
+
+  GST_DEBUG_OBJECT (obj->dbg_obj,
+      "Got composing left %u, top %u, size %ux%u", sel.r.left, sel.r.top,
+      sel.r.width, sel.r.height);
+
+  *compose_rect = sel.r;
+
+  return TRUE;
+}
+
+/**
  * gst_v4l2_object_set_crop:
  * @obj: the object
  * @crop_rect: the region to crop
@@ -4839,20 +4894,24 @@ gboolean
 gst_v4l2_object_setup_padding (GstV4l2Object * obj)
 {
   GstVideoAlignment *align = &obj->align;
-  struct v4l2_rect crop;
+  struct v4l2_rect rect;
 
   if (align->padding_left + align->padding_top
       + align->padding_right + align->padding_bottom == 0) {
-    GST_DEBUG_OBJECT (obj->dbg_obj, "no cropping needed");
+    GST_DEBUG_OBJECT (obj->dbg_obj, "no cropping/composing needed");
     return TRUE;
   }
 
-  crop.left = align->padding_left;
-  crop.top = align->padding_top;
-  crop.width = obj->info.width;
-  crop.height = GST_VIDEO_INFO_FIELD_HEIGHT (&obj->info);
+  rect.left = align->padding_left;
+  rect.top = align->padding_top;
+  rect.width = obj->info.width;
+  rect.height = GST_VIDEO_INFO_FIELD_HEIGHT (&obj->info);
 
-  return gst_v4l2_object_set_crop (obj, &crop);
+  if (V4L2_TYPE_IS_OUTPUT (obj->type)) {
+    return gst_v4l2_object_set_crop (obj, &rect);
+  } else {
+    return gst_v4l2_object_set_compose (obj, &rect);
+  }
 }
 
 static gboolean
@@ -5292,11 +5351,35 @@ gst_v4l2_object_match_buffer_layout (GstV4l2Object * obj, guint n_planes,
       wanted_stride[0] = plane_stride;
     }
 
+    GST_DEBUG_OBJECT (obj->dbg_obj, "Wanted format of %dx%d",
+        format.fmt.pix_mp.width, format.fmt.pix_mp.height);
+    if (V4L2_TYPE_IS_MULTIPLANAR (obj->type)) {
+      for (guint i = 0; i < format.fmt.pix_mp.num_planes; i++)
+        GST_DEBUG_OBJECT (obj->dbg_obj, "  [%u] stride %d, sizeimage %d", i,
+            format.fmt.pix_mp.plane_fmt[i].bytesperline,
+            format.fmt.pix_mp.plane_fmt[i].sizeimage);
+    } else {
+      GST_DEBUG_OBJECT (obj->dbg_obj, "  stride %d, sizeimage %d",
+          format.fmt.pix.bytesperline, format.fmt.pix.sizeimage);
+    }
+
     if (obj->ioctl (obj->video_fd, VIDIOC_S_FMT, &format) < 0) {
       GST_WARNING_OBJECT (obj->dbg_obj,
           "Something went wrong trying to update current format: %s",
           g_strerror (errno));
       return FALSE;
+    }
+
+    GST_DEBUG_OBJECT (obj->dbg_obj, "Got format of %dx%d",
+        format.fmt.pix_mp.width, format.fmt.pix_mp.height);
+    if (V4L2_TYPE_IS_MULTIPLANAR (obj->type)) {
+      for (guint i = 0; i < format.fmt.pix_mp.num_planes; i++)
+        GST_DEBUG_OBJECT (obj->dbg_obj, "  [%u] stride %d, sizeimage %d", i,
+            format.fmt.pix_mp.plane_fmt[i].bytesperline,
+            format.fmt.pix_mp.plane_fmt[i].sizeimage);
+    } else {
+      GST_DEBUG_OBJECT (obj->dbg_obj, "  stride %d, sizeimage %d",
+          format.fmt.pix.bytesperline, format.fmt.pix.sizeimage);
     }
 
     gst_v4l2_object_save_format (obj, obj->fmtdesc, &format, &obj->info,
@@ -5335,10 +5418,14 @@ gst_v4l2_object_match_buffer_layout (GstV4l2Object * obj, guint n_planes,
     }
   }
 
-  if (obj->align.padding_bottom) {
-    /* Crop because of vertical padding */
-    GST_DEBUG_OBJECT (obj->dbg_obj, "crop because of bottom padding of %d",
-        obj->align.padding_bottom);
+  if (obj->align.padding_right || obj->align.padding_bottom) {
+    /* Setup padding */
+    GST_DEBUG_OBJECT (obj->dbg_obj,
+        "setup padding (top: %u left: %u right: %u bottom: %u)",
+        obj->align.padding_top,
+        obj->align.padding_left,
+        obj->align.padding_right, obj->align.padding_bottom);
+
     gst_v4l2_object_setup_padding (obj);
   }
 
@@ -5722,6 +5809,7 @@ gst_v4l2_object_propose_allocation (GstV4l2Object * obj, GstQuery * query)
   guint size, min, max;
   GstCaps *caps;
   gboolean need_pool;
+  GstStructure *allocation_meta = NULL;
 
   /* Set defaults allocation parameters */
   size = obj->info.size;
@@ -5773,8 +5861,21 @@ gst_v4l2_object_propose_allocation (GstV4l2Object * obj, GstQuery * query)
 
   gst_query_add_allocation_pool (query, pool, size, min, max);
 
+  if (obj->align.padding_top || obj->align.padding_bottom ||
+      obj->align.padding_left || obj->align.padding_right) {
+    allocation_meta = gst_structure_new ("video-meta",
+        "padding-top", G_TYPE_UINT, obj->align.padding_top,
+        "padding-bottom", G_TYPE_UINT, obj->align.padding_bottom,
+        "padding-left", G_TYPE_UINT, obj->align.padding_left,
+        "padding-right", G_TYPE_UINT, obj->align.padding_right, NULL);
+  }
+
   /* we also support various metadata */
-  gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
+  gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE,
+      allocation_meta);
+
+  if (allocation_meta)
+    gst_structure_free (allocation_meta);
 
   if (pool)
     gst_object_unref (pool);
