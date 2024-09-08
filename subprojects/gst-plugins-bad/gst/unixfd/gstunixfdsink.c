@@ -95,6 +95,14 @@ GST_ELEMENT_REGISTER_DEFINE (unixfdsink, "unixfdsink", GST_RANK_NONE,
 
 #define DEFAULT_SOCKET_TYPE G_UNIX_SOCKET_ADDRESS_PATH
 
+/* signals */
+enum
+{
+  SIGNAL_CLIENT_CONNECTED,
+  SIGNAL_CLIENT_DISCONNECTED,
+  LAST_SIGNAL
+};
+
 enum
 {
   PROP_0,
@@ -102,6 +110,7 @@ enum
   PROP_SOCKET_TYPE,
 };
 
+static guint signals[LAST_SIGNAL] = { 0 };
 
 static void
 client_free (Client * client)
@@ -259,6 +268,8 @@ incoming_command_cb (GSocket * socket, GIOCondition cond, gpointer user_data)
 
 on_error:
   g_hash_table_remove (self->clients, socket);
+  guint size = g_hash_table_size (self->clients);
+  g_signal_emit (self, signals[SIGNAL_CLIENT_DISCONNECTED], 0, size);
   g_clear_error (&error);
   g_free (payload);
   GST_OBJECT_UNLOCK (self);
@@ -297,6 +308,7 @@ new_client_cb (GSocket * socket, GIOCondition cond, gpointer user_data)
 
   GST_OBJECT_LOCK (self);
 
+  guint old_size = g_hash_table_size (self->clients);
   GST_DEBUG_OBJECT (self, "New client %p", client);
   g_hash_table_insert (self->clients, client_socket, client);
 
@@ -313,6 +325,10 @@ new_client_cb (GSocket * socket, GIOCondition cond, gpointer user_data)
     g_clear_error (&error);
   }
   g_free (payload);
+
+  guint new_size = g_hash_table_size (self->clients);
+  if (new_size > old_size)
+    g_signal_emit (self, signals[SIGNAL_CLIENT_CONNECTED], 0, new_size);
 
   GST_OBJECT_UNLOCK (self);
 
@@ -393,6 +409,8 @@ gst_unix_fd_sink_stop (GstBaseSink * bsink)
   g_clear_object (&self->socket);
   gst_clear_caps (&self->caps);
   g_hash_table_remove_all (self->clients);
+  guint size = g_hash_table_size (self->clients);
+  g_signal_emit (self, signals[SIGNAL_CLIENT_DISCONNECTED], 0, size);
   g_clear_pointer (&self->payload, g_byte_array_unref);
 
   if (self->socket_type == G_UNIX_SOCKET_ADDRESS_PATH)
@@ -419,6 +437,8 @@ send_command_to_all (GstUnixFdSink * self, CommandType type, GUnixFDList * fds,
           type, client, error->message);
       g_clear_error (&error);
       g_hash_table_iter_remove (&iter);
+      guint size = g_hash_table_size (self->clients);
+      g_signal_emit (self, signals[SIGNAL_CLIENT_DISCONNECTED], 0, size);
       continue;
     }
     /* Keep a ref on this buffer until all clients released it. */
@@ -666,4 +686,12 @@ gst_unix_fd_sink_class_init (GstUnixFdSinkClass * klass)
           G_TYPE_UNIX_SOCKET_ADDRESS_TYPE, DEFAULT_SOCKET_TYPE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT |
           GST_PARAM_MUTABLE_READY));
+
+  signals[SIGNAL_CLIENT_CONNECTED] = g_signal_new ("client-connected",
+      GST_TYPE_UNIX_FD_SINK, G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+      G_TYPE_NONE, 1, G_TYPE_UINT);
+
+  signals[SIGNAL_CLIENT_DISCONNECTED] = g_signal_new ("client-disconnected",
+      GST_TYPE_UNIX_FD_SINK, G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+      G_TYPE_NONE, 1, G_TYPE_UINT);
 }
