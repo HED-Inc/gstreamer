@@ -588,6 +588,15 @@ void    gst_printerr                    (const gchar * format, ...) G_GNUC_PRINT
 GST_API
 void    gst_printerrln                  (const gchar * format, ...) G_GNUC_PRINTF (1, 2);
 
+static inline const gchar *
+gst_intern_string_from_ptr (gpointer ptr)
+{
+  gchar ptrstr[32];
+
+  g_snprintf (ptrstr, sizeof (ptrstr), "%p", ptr);
+  return g_intern_string (ptrstr);
+}
+
 #ifndef GST_DISABLE_GST_DEBUG
 
 /* cast to void * avoids a warning with gcc 6
@@ -2136,7 +2145,7 @@ GST_TRACE (const char *format, ...)
 
 #define GST_DEBUG_REGISTER_FUNCPTR(ptr) G_STMT_START{ }G_STMT_END
 #define GST_DEBUG_FUNCPTR(ptr) (ptr)
-#define GST_DEBUG_FUNCPTR_NAME(ptr) (g_strdup_printf ("%p", ptr))
+#define GST_DEBUG_FUNCPTR_NAME(ptr) gst_intern_string_from_ptr (ptr)
 
 #define GST_CAT_MEMDUMP_OBJECT(cat,obj,msg,data,length) G_STMT_START{ }G_STMT_END
 #define GST_CAT_MEMDUMP_ID(cat,id,msg,data,length)      G_STMT_START{ }G_STMT_END
