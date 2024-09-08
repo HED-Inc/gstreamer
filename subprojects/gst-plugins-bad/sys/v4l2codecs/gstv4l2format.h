@@ -33,9 +33,13 @@ gboolean   gst_v4l2_format_to_video_info (struct v4l2_format * fmt,
                                           GstVideoInfo * out_info);
 
 gboolean   gst_v4l2_format_to_video_format (guint32 pix_fmt,
-                                            GstVideoFormat * out_format);
+                                            GstVideoFormat * out_format,
+                                            guint32 * out_drm_fourcc,
+                                            guint64 * out_drm_mod);
 
 gboolean   gst_v4l2_format_from_video_format (GstVideoFormat format,
+                                              guint32 drm_fourcc,
+                                              guint64 drm_mod,
                                               guint32 * out_pix_fmt);
 
 #endif /* __GST_V4L2_FORMAT_H__ */

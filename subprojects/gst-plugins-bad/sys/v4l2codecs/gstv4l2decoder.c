@@ -361,9 +361,7 @@ gst_v4l2_decoder_enum_size_for_format (GstV4l2Decoder * self,
     guint32 pixelformat, gint index, gint unscaled_width, gint unscaled_height)
 {
   struct v4l2_frmsizeenum size;
-  GstVideoFormat format;
   gint ret;
-  gboolean res;
 
   memset (&size, 0, sizeof (struct v4l2_frmsizeenum));
   size.index = index;
@@ -391,9 +389,6 @@ gst_v4l2_decoder_enum_size_for_format (GstV4l2Decoder * self,
     return NULL;
   }
 
-  res = gst_v4l2_format_to_video_format (pixelformat, &format);
-  g_assert (res);
-
   GST_DEBUG_OBJECT (self, "get size (%d x %d) index %d for %" GST_FOURCC_FORMAT,
       size.discrete.width, size.discrete.height, index,
       GST_FOURCC_ARGS (pixelformat));
@@ -411,15 +406,20 @@ gst_v4l2_decoder_probe_caps_for_format (GstV4l2Decoder * self,
   GstCaps *caps, *tmp, *size_caps;
   GstVideoFormat format;
   guint32 drm_fourcc;
+  guint64 drm_mod;
 
   GST_DEBUG_OBJECT (self, "enumerate size for %" GST_FOURCC_FORMAT,
       GST_FOURCC_ARGS (pixelformat));
 
-  if (!gst_v4l2_format_to_video_format (pixelformat, &format))
-    return gst_caps_new_empty ();
+  caps = gst_caps_new_empty ();
+  if (!gst_v4l2_format_to_video_format (pixelformat, &format, &drm_fourcc,
+          &drm_mod)) {
+    return caps;
+  }
 
-  caps = gst_caps_new_simple ("video/x-raw", "format", G_TYPE_STRING,
-      gst_video_format_to_string (format), NULL);
+  GST_DEBUG_OBJECT (self,
+      "got GstVideoFormat 0x%x drm_fourcc 0x%x drm_mod 0x%lx", format,
+      drm_fourcc, drm_mod);
 
   size_caps = gst_caps_new_empty ();
   while ((tmp = gst_v4l2_decoder_enum_size_for_format (self, pixelformat,
@@ -427,22 +427,28 @@ gst_v4l2_decoder_probe_caps_for_format (GstV4l2Decoder * self,
     size_caps = gst_caps_merge (size_caps, tmp);
   }
 
-  if (!gst_caps_is_empty (size_caps)) {
-    tmp = caps;
-    caps = gst_caps_intersect_full (tmp, size_caps, GST_CAPS_INTERSECT_FIRST);
-    gst_caps_unref (tmp);
+  if (format != GST_VIDEO_FORMAT_UNKNOWN) {
+    GstCaps *simple_caps;
+
+    simple_caps = gst_caps_new_simple ("video/x-raw", "format", G_TYPE_STRING,
+        gst_video_format_to_string (format), NULL);
+
+    if (!gst_caps_is_empty (size_caps)) {
+      tmp = simple_caps;
+      simple_caps =
+          gst_caps_intersect_full (tmp, size_caps, GST_CAPS_INTERSECT_FIRST);
+      gst_caps_unref (tmp);
+    }
+
+    caps = gst_caps_merge (simple_caps, caps);
   }
 
-  /* TODO: Add a V4L2 to DRM fourcc translator for formats that we don't support
-   * in software.
-   */
-  drm_fourcc = gst_video_dma_drm_fourcc_from_format (format);
   if (drm_fourcc /* != DRM_FORMAT_INVALID */ ) {
     GstCaps *drm_caps;
 
     drm_caps = gst_caps_new_simple ("video/x-raw", "format", G_TYPE_STRING,
         "DMA_DRM", "drm-format", G_TYPE_STRING,
-        gst_video_dma_drm_fourcc_to_string (drm_fourcc, 0), NULL);
+        gst_video_dma_drm_fourcc_to_string (drm_fourcc, drm_mod), NULL);
     gst_caps_set_features_simple (drm_caps,
         gst_caps_features_from_string (GST_CAPS_FEATURE_MEMORY_DMABUF));
 
@@ -544,6 +550,8 @@ gst_v4l2_decoder_select_src_format (GstV4l2Decoder * self, GstCaps * caps,
   };
   GstVideoFormat format;
   guint32 pix_fmt;
+  guint32 drm_fourcc = 0x0;
+  guint64 drm_mod = 0x0;
   GstVideoInfo tmp_vinfo;
   GstVideoInfoDmaDrm tmp_vinfo_drm;
 
@@ -565,6 +573,8 @@ gst_v4l2_decoder_select_src_format (GstV4l2Decoder * self, GstCaps * caps,
 
   if (gst_video_info_dma_drm_from_caps (&tmp_vinfo_drm, caps)) {
     format = tmp_vinfo_drm.vinfo.finfo->format;
+    drm_fourcc = tmp_vinfo_drm.drm_fourcc;
+    drm_mod = tmp_vinfo_drm.drm_modifier;
   } else if (gst_video_info_from_caps (&tmp_vinfo, caps)) {
     format = tmp_vinfo.finfo->format;
   } else {
@@ -572,9 +582,11 @@ gst_v4l2_decoder_select_src_format (GstV4l2Decoder * self, GstCaps * caps,
     return FALSE;
   }
 
-  if (!gst_v4l2_format_from_video_format (format, &pix_fmt)) {
-    GST_ERROR_OBJECT (self, "Unsupported V4L2 pixelformat %" GST_FOURCC_FORMAT,
-        GST_FOURCC_ARGS (fmt.fmt.pix_mp.pixelformat));
+  if (!gst_v4l2_format_from_video_format (format, drm_fourcc, drm_mod,
+          &pix_fmt)) {
+    GST_ERROR_OBJECT (self,
+        "Unsupported format GstVideoFormat 0x%x drm_fourcc 0x%x drm_mod 0x%lx",
+        format, drm_fourcc, drm_mod);
     return FALSE;
   }
 
@@ -596,15 +608,11 @@ gst_v4l2_decoder_select_src_format (GstV4l2Decoder * self, GstCaps * caps,
     return FALSE;
   }
 
+  gst_video_info_dma_drm_init (vinfo_drm);
   if (tmp_vinfo_drm.drm_fourcc) {
-    if (!gst_video_info_dma_drm_from_video_info (vinfo_drm, vinfo, 0)) {
-      GST_ERROR_OBJECT (self,
-          "Unsupported V4L2 pixelformat for DRM %" GST_FOURCC_FORMAT,
-          GST_FOURCC_ARGS (fmt.fmt.pix_mp.pixelformat));
-      return FALSE;
-    }
-  } else {
-    gst_video_info_dma_drm_init (vinfo_drm);
+    vinfo_drm->vinfo = *vinfo;
+    vinfo_drm->drm_fourcc = drm_fourcc;
+    vinfo_drm->drm_modifier = drm_mod;
   }
 
   GST_INFO_OBJECT (self, "Selected format %s %ix%i",
@@ -627,7 +635,11 @@ gst_v4l2_decoder_set_output_state (GstVideoDecoder * decoder,
   if (vinfo_drm->drm_fourcc /* != DRM_FORMAT_INVALID */ ) {
     GstVideoInfoDmaDrm tmp_vinfo_drm;
 
-    gst_video_info_dma_drm_from_video_info (&tmp_vinfo_drm, &state->info, 0);
+    gst_video_info_dma_drm_init (&tmp_vinfo_drm);
+    tmp_vinfo_drm.vinfo = state->info;
+    tmp_vinfo_drm.drm_fourcc = vinfo_drm->drm_fourcc;
+    tmp_vinfo_drm.drm_modifier = vinfo_drm->drm_modifier;
+
     state->caps = gst_video_info_dma_drm_to_caps (&tmp_vinfo_drm);
   } else {
     state->caps = gst_video_info_to_caps (&state->info);
