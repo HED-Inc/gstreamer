@@ -910,6 +910,7 @@ send_message (GstRTSPClient * client, GstRTSPContext * ctx,
   g_signal_emit (client, gst_rtsp_client_signals[SIGNAL_SEND_MESSAGE],
       0, ctx, message);
 
+  g_mutex_lock (&priv->watch_lock);
   g_mutex_lock (&priv->send_lock);
   if (priv->send_messages_func) {
     priv->send_messages_func (client, message, 1, close, priv->send_data);
@@ -917,6 +918,7 @@ send_message (GstRTSPClient * client, GstRTSPContext * ctx,
     priv->send_func (client, message, close, priv->send_data);
   }
   g_mutex_unlock (&priv->send_lock);
+  g_mutex_unlock (&priv->watch_lock);
 
   gst_rtsp_message_unset (message);
 }
@@ -1213,10 +1215,13 @@ do_send_data (GstBuffer * buffer, guint8 channel, GstRTSPClient * client)
 
   gst_rtsp_message_set_body_buffer (&message, buffer);
 
+  g_mutex_lock (&priv->watch_lock);
   g_mutex_lock (&priv->send_lock);
   if (get_data_seq (client, channel) != 0) {
     GST_WARNING ("already a queued data message for channel %d", channel);
     g_mutex_unlock (&priv->send_lock);
+    g_mutex_unlock (&priv->watch_lock);
+    gst_rtsp_message_unset (&message);
     return FALSE;
   }
   if (priv->send_messages_func) {
@@ -1226,6 +1231,7 @@ do_send_data (GstBuffer * buffer, guint8 channel, GstRTSPClient * client)
     ret = priv->send_func (client, &message, FALSE, priv->send_data);
   }
   g_mutex_unlock (&priv->send_lock);
+  g_mutex_unlock (&priv->watch_lock);
 
   gst_rtsp_message_unset (&message);
 
@@ -1257,10 +1263,12 @@ do_send_data_list (GstBufferList * buffer_list, guint8 channel,
   guint i, n = gst_buffer_list_length (buffer_list);
   GstRTSPMessage *messages;
 
+  g_mutex_lock (&priv->watch_lock);
   g_mutex_lock (&priv->send_lock);
   if (get_data_seq (client, channel) != 0) {
     GST_WARNING ("already a queued data message for channel %d", channel);
     g_mutex_unlock (&priv->send_lock);
+    g_mutex_unlock (&priv->watch_lock);
     return FALSE;
   }
 
@@ -1283,6 +1291,7 @@ do_send_data_list (GstBufferList * buffer_list, guint8 channel,
     }
   }
   g_mutex_unlock (&priv->send_lock);
+  g_mutex_unlock (&priv->watch_lock);
 
   for (i = 0; i < n; i++) {
     gst_rtsp_message_unset (&messages[i]);
@@ -1339,12 +1348,13 @@ gst_rtsp_client_close (GstRTSPClient * client)
     GST_DEBUG ("client %p: destroying watch", client);
     g_source_destroy ((GSource *) priv->watch);
     priv->watch = NULL;
+    g_mutex_unlock (&priv->watch_lock);
+
     gst_rtsp_client_set_send_func (client, NULL, NULL, NULL);
     gst_rtsp_client_set_send_messages_func (client, NULL, NULL, NULL);
     rtsp_ctrl_timeout_remove (client);
-  }
-
-  g_mutex_unlock (&priv->watch_lock);
+  } else
+    g_mutex_unlock (&priv->watch_lock);
 }
 
 static gchar *
