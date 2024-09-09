@@ -131,6 +131,49 @@ gst_ffmpegviddec_lowres_get_type (void)
   return ffmpegdec_lowres_type;
 }
 
+/**
+ * GstLibAVVidDecSkipFrame:
+ *
+ * Types of frames to skip during decoding.
+ *
+ * Since: 1.26
+ */
+
+/**
+ * GstLibAVVidDecSkipFrame::default
+ *
+ * Since: 1.26
+ */
+
+/**
+ * GstLibAVVidDecSkipFrame::non-ref
+ *
+ * Since: 1.26
+ */
+
+/**
+ * GstLibAVVidDecSkipFrame::bidir
+ *
+ * Since: 1.26
+ */
+
+/**
+ * GstLibAVVidDecSkipFrame::non-intra
+ *
+ * Since: 1.26
+ */
+
+/**
+ * GstLibAVVidDecSkipFrame::non-key
+ *
+ * Since: 1.26
+ */
+
+/**
+ * GstLibAVVidDecSkipFrame::all
+ *
+ * Since: 1.26
+ */
 #define GST_FFMPEGVIDDEC_TYPE_SKIPFRAME (gst_ffmpegviddec_skipframe_get_type())
 static GType
 gst_ffmpegviddec_skipframe_get_type (void)
@@ -139,10 +182,14 @@ gst_ffmpegviddec_skipframe_get_type (void)
 
   if (!ffmpegdec_skipframe_type) {
     static const GEnumValue ffmpegdec_skipframe[] = {
-      {0, "0", "Skip nothing"},
-      {1, "1", "Skip B-frames"},
-      {2, "2", "Skip IDCT/Dequantization"},
-      {5, "5", "Skip everything"},
+      // taken from https://ffmpeg.org/doxygen/trunk/group__lavc__decoding.html
+      {AVDISCARD_DEFAULT, "Discard useless packets like 0 size packets in avi",
+          "default"},
+      {AVDISCARD_NONREF, "Discard all non reference", "non-ref"},
+      {AVDISCARD_BIDIR, "Discard all bidirectional frames", "bidir"},
+      {AVDISCARD_NONINTRA, "Discard all non intra frames", "non-intra"},
+      {AVDISCARD_NONKEY, "Discard all frames except keyframes", "non-key"},
+      {AVDISCARD_ALL, "Discard all", "all"},
       {0, NULL, NULL},
     };
 
