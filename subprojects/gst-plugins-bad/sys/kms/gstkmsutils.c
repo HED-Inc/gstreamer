@@ -31,6 +31,8 @@
 
 #include "gstkmsutils.h"
 
+#include <gst/allocators/gstdmabuf.h>
+
 /* *INDENT-OFF* */
 static const struct
 {
@@ -202,6 +204,13 @@ gst_kms_sink_caps_template_fill (void)
   GstStructure *template;
 
   caps = gst_caps_new_empty ();
+  template = gst_structure_new ("video/x-raw",
+      "format", G_TYPE_STRING, "DMA_DRM",
+      "width", GST_TYPE_INT_RANGE, 1, G_MAXINT,
+      "height", GST_TYPE_INT_RANGE, 1, G_MAXINT,
+      "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
+  gst_caps_append_structure_full (caps, template,
+      gst_caps_features_new_single (GST_CAPS_FEATURE_MEMORY_DMABUF));
   for (i = 0; i < G_N_ELEMENTS (format_map); i++) {
     template = gst_video_format_to_structure (format_map[i].format);
     gst_structure_set (template,
@@ -210,6 +219,7 @@ gst_kms_sink_caps_template_fill (void)
         "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
     gst_caps_append_structure (caps, template);
   }
+
   return gst_caps_simplify (caps);
 }
 

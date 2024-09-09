@@ -66,7 +66,7 @@ gst_kms_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
   GstKMSBufferPool *vpool;
   GstKMSBufferPoolPrivate *priv;
   GstCaps *caps;
-  GstVideoInfo vinfo;
+  GstVideoInfoDmaDrm vinfo_drm = { 0 };
   GstAllocator *allocator;
   GstAllocationParams params;
 
@@ -80,7 +80,10 @@ gst_kms_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
     goto no_caps;
 
   /* now parse the caps from the config */
-  if (!gst_video_info_from_caps (&vinfo, caps))
+  if (gst_video_is_dma_drm_caps (caps)) {
+    if (!gst_video_info_dma_drm_from_caps (&vinfo_drm, caps))
+      goto wrong_caps;
+  } else if (!gst_video_info_from_caps (&vinfo_drm.vinfo, caps))
     goto wrong_caps;
 
   allocator = NULL;
@@ -95,7 +98,8 @@ gst_kms_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
   if (!priv->allocator)
     goto no_allocator;
 
-  priv->vinfo = vinfo;
+  /* TODO: Support nonlinear modifiers by using vinfo_drm.drm_modifiers */
+  priv->vinfo = vinfo_drm.vinfo;
 
   /* enable metadata based on config of the pool */
   priv->add_videometa = gst_buffer_pool_config_has_option (config,
