@@ -677,6 +677,7 @@ endif
 
 
 gst_libraries = []
+subdir('cmake')
 subdir('gst')
 subdir('libs')
 subdir('plugins')

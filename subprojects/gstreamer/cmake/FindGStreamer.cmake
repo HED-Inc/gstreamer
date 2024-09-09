@@ -1,0 +1,828 @@
+# SPDX-FileCopyrightText: 2024 L. E. Segovia <amy@centricular.com>
+# SPDX-License-Ref: LGPL-2.1-or-later
+
+#[=======================================================================[.rst:
+FindGStreamer
+-------
+
+Finds the GStreamer library. Requires ``pkg-config`` to be installed.
+
+Configuration
+^^^^^^^^^^^^^
+
+This module can be configured with the following variables:
+
+``GStreamer_STATIC``
+  Link against GStreamer statically (see below).
+
+Imported Targets
+^^^^^^^^^^^^^^^^
+
+This module defines the following :prop_tgt:`IMPORTED` targets:
+
+``GStreamer::GStreamer``
+  The GStreamer library.
+
+This module defines the following :prop_tgt:`SHARED` targets:
+
+``GStreamer::mobile``
+  A target that will build the shared library consisting of GStreamer plus all the selected plugin components. (Android/iOS only)
+
+Result Variables
+^^^^^^^^^^^^^^^^
+
+This will define the following variables:
+
+``GStreamer_FOUND``
+  True if the system has the GStreamer library.
+``GStreamer_VERSION``
+  The version of the GStreamer library which was found.
+``GStreamer_INCLUDE_DIRS``
+  Include directories needed to use GStreamer.
+``GStreamer_LIBRARIES``
+  Libraries needed to link to GStreamer.
+
+Cache Variables
+^^^^^^^^^^^^^^^
+
+The following cache variables may also be set:
+
+``GStreamer_INCLUDE_DIR``
+  The directory containing ``gst/gstversion.h``.
+``GStreamer_LIBRARY``
+  The path to the GStreamer library.
+
+Configuration Variables
+^^^^^^^^^^^^^^^
+
+Setting the following variables is required, depending on the operating system:
+
+``GStreamer_ROOT_DIR``
+  Installation prefix of the GStreamer SDK.
+
+``GStreamer_USE_STATIC_LIBS`
+  Set to ON to force the use of the static libraries. Default is OFF.
+
+``GStreamer_JAVA_SRC_DIR``
+  Target directory for deploying the selected plugins' Java classfiles to. (Android only)
+
+``GStreamer_Mobile_MODULE_NAME``
+  Name for the GStreamer::mobile shared library. Default is ``gstreamer_android`` (Android) or ``gstreamer_mobile`` (iOS).
+
+``G_IO_MODULES``
+  Set this to the GIO modules you need, additional to any GStreamer plugins. (Usually set to ``gnutls`` or ``openssl``)
+
+``GStreamer_EXTRA_DEPS``
+  pkg-config names of the extra dependencies that will be included whenever linking against GStreamer.
+
+#]=======================================================================]
+
+if (GStreamer_FOUND)
+    return()
+endif()
+
+#####################
+#  Setup variables  #
+#####################
+
+if (NOT DEFINED GStreamer_ROOT_DIR AND DEFINED GSTREAMER_ROOT)
+    set(GStreamer_ROOT_DIR ${GSTREAMER_ROOT})
+endif()
+
+if (NOT GStreamer_ROOT_DIR)
+    set(GStreamer_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}/../../")
+endif()
+
+if (NOT EXISTS "${GStreamer_ROOT_DIR}")
+    message(FATAL_ERROR "The directory GStreamer_ROOT_DIR=${GStreamer_ROOT_DIR} does not exist")
+endif()
+
+if (ANDROID OR APPLE)
+    set(GSTREAMER_IS_MOBILE ON)
+else()
+    set(GSTREAMER_IS_MOBILE OFF)
+endif()
+
+# Block shared GStreamer on mobile
+if (GSTREAMER_IS_MOBILE)
+    if (NOT DEFINED GStreamer_USE_STATIC_LIBS)
+        set(GStreamer_USE_STATIC_LIBS ON)
+    endif()
+    if (NOT GStreamer_USE_STATIC_LIBS)
+        message(FATAL_ERROR "Shared library GStreamer is not supported on mobile platforms")
+    endif()
+endif()
+
+# Set up output variables for Android
+if(ANDROID)
+    if (NOT DEFINED GStreamer_JAVA_SRC_DIR AND DEFINED GSTREAMER_JAVA_SRC_DIR)
+        set(GStreamer_JAVA_SRC_DIR ${GSTREAMER_JAVA_SRC_DIR})
+    elseif(NOT DEFINED GStreamer_JAVA_SRC_DIR)
+        set(GStreamer_JAVA_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../src/")
+    else()
+        # Gradle does not let us access the root of the subproject
+        # so we implement the ndk-build assumption ourselves
+        set(GStreamer_JAVA_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../${GStreamer_JAVA_SRC_DIR}")
+    endif()
+
+    if(NOT DEFINED GStreamer_NDK_BUILD_PATH AND DEFINED GSTREAMER_NDK_BUILD_PATH)
+        set(GStreamer_NDK_BUILD_PATH "${GSTREAMER_NDK_BUILD_PATH}")
+    elseif(NOT DEFINED GStreamer_NDK_BUILD_PATH)
+        set(GStreamer_NDK_BUILD_PATH  "${GStreamer_ROOT}/share/gst-android/ndk-build/")
+    endif()
+endif()
+
+if(NOT DEFINED GStreamer_Mobile_MODULE_NAME)
+    if (DEFINED GSTREAMER_ANDROID_MODULE_NAME)
+        set(GStreamer_Mobile_MODULE_NAME "${GSTREAMER_ANDROID_MODULE_NAME}")
+    elseif(ANDROID)
+        set(GStreamer_Mobile_MODULE_NAME gstreamer_android)
+    else()
+        set(GStreamer_Mobile_MODULE_NAME gstreamer_mobile)
+    endif()
+endif()
+
+# Set the environment for pkg-config
+if (WIN32)
+    set(ENV{PKG_CONFIG_PATH} "${GStreamer_ROOT_DIR}/lib/pkgconfig;${GStreamer_ROOT_DIR}/lib/gstreamer-1.0/pkgconfig;${GStreamer_ROOT_DIR}/lib/gio/modules/pkgconfig")
+else()
+    set(ENV{PKG_CONFIG_PATH} "${GStreamer_ROOT_DIR}/lib/pkgconfig:${GStreamer_ROOT_DIR}/lib/gstreamer-1.0/pkgconfig:${GStreamer_ROOT_DIR}/lib/gio/modules/pkgconfig")
+endif()
+
+# Set the list of extra dependencies
+if (NOT DEFINED GStreamer_EXTRA_DEPS)
+    set(GStreamer_EXTRA_DEPS)
+    if (DEFINED GSTREAMER_EXTRA_DEPS)
+        set(GStreamer_EXTRA_DEPS ${GSTREAMER_EXTRA_DEPS})
+    endif()
+endif()
+
+# Path for the static GIO modules
+set(G_IO_MODULES_PATH "${GStreamer_ROOT_DIR}/lib/gio/modules")
+
+# Find libraries. This is meant to be used with static libraries
+# (hence the reprioritization) but I've added a fallback to shared libraries
+# and stub modules in case any are non-existent.
+function(_gst_find_library LOCAL_LIB GST_LOCAL_LIB)
+    if (DEFINED ${GST_LOCAL_LIB})
+        return()
+    endif()
+
+    set(_gst_suffixes ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    set(_gst_prefixes ${CMAKE_FIND_LIBRARY_PREFIXES})
+    if (APPLE)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".dylib" ".so" ".tbd")
+        set(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
+    elseif (UNIX)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".so")
+        set(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
+    else()
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
+        set(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
+    endif()
+
+    if ("${LOCAL_LIB}" IN_LIST _gst_IGNORED_SYSTEM_LIBRARIES)
+        set(${GST_LOCAL_LIB} ${LOCAL_LIB} PARENT_SCOPE)
+    else()
+        find_library(${GST_LOCAL_LIB}
+            ${LOCAL_LIB}
+            HINTS ${ARGN}
+            NO_DEFAULT_PATH
+            NO_CMAKE_FIND_ROOT_PATH
+            REQUIRED
+        )
+        set(${GST_LOCAL_LIB} "${${GST_LOCAL_LIB}}" PARENT_SCOPE)
+        if (NOT ${GST_LOCAL_LIB})
+            message(FATAL_ERROR "${LOCAL_LIB} was unexpectedly not found.")
+        endif()
+    endif()
+
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${_gst_suffixes})
+    set(CMAKE_FIND_LIBRARY_PREFIXES ${_gst_prefixes})
+endfunction()
+
+macro(_gst_apply_link_libraries HIDE PC_LIBRARIES PC_HINTS GST_TARGET)
+    if (APPLE AND ${HIDE})
+        target_link_directories(${GST_TARGET} INTERFACE
+            ${${PC_HINTS}}
+        )
+    endif()
+    foreach(LOCAL_LIB IN LISTS ${PC_LIBRARIES})
+        if (LOCAL_LIB MATCHES "${_gst_SRT_REGEX_PATCH}")
+            string(REGEX REPLACE "${_gst_SRT_REGEX_PATCH}" "\\1" LOCAL_LIB "${LOCAL_LIB}")
+        endif()
+        string(MAKE_C_IDENTIFIER "_gst_${LOCAL_LIB}" GST_LOCAL_LIB)
+        if (NOT ${GST_LOCAL_LIB})
+            _gst_find_library(${LOCAL_LIB} ${GST_LOCAL_LIB} ${${PC_HINTS}})
+        endif()
+        if ("${${GST_LOCAL_LIB}}" IN_LIST _gst_IGNORED_SYSTEM_LIBRARIES)
+            target_link_libraries(${GST_TARGET} INTERFACE
+                ${${GST_LOCAL_LIB}})
+        elseif (APPLE AND ${HIDE})
+            set(LOCAL_FILE)
+            get_filename_component(LOCAL_FILE ${${GST_LOCAL_LIB}} NAME)
+            target_link_libraries(${GST_TARGET} INTERFACE
+                "-hidden-l${LOCAL_FILE}")
+        elseif((UNIX OR ANDROID) AND ${HIDE})
+            target_link_libraries(${GST_TARGET} INTERFACE
+                -Wl,--exclude-libs,${${GST_LOCAL_LIB}})
+        else()
+            target_link_libraries(${GST_TARGET} INTERFACE
+                ${${GST_LOCAL_LIB}})
+        endif()
+    endforeach()
+endmacro()
+
+function(_gst_filter_missing_directories GST_INCLUDE_DIRS)
+    set(_gst_include_dirs)
+    foreach(DIR IN LISTS ${GST_INCLUDE_DIRS})
+        if ((IS_DIRECTORY "${DIR}") AND (EXISTS "${DIR}"))
+            list(APPEND _gst_include_dirs "${DIR}")
+        else()
+            message(WARNING "Skipping missing include folder ${DIR}.")
+        endif()
+    endforeach()
+    set(${GST_INCLUDE_DIRS} "${_gst_include_dirs}")
+endfunction()
+
+macro(_gst_apply_frameworks PC_STATIC_LDFLAGS_OTHER GST_TARGET)
+    if (APPLE)
+        # LDFLAGS_OTHER may include framework linkage. Because CMake
+        # iterates over arguments separated by spaces, it doesn't realise
+        # that those arguments must not be split.
+        set(new_ldflags)
+        set(assemble_framework FALSE)
+        foreach(_arg IN LISTS ${PC_STATIC_LDFLAGS_OTHER})
+            if (assemble_framework)
+                set(assemble_framework FALSE)
+                find_library(GST_${_arg}_LIB ${_arg} REQUIRED)
+                target_link_libraries(${GST_TARGET}
+                    INTERFACE
+                        "${GST_${_arg}_LIB}"
+                )
+            elseif (_arg STREQUAL "-framework")
+                set(assemble_framework TRUE)
+            else()
+                set(assemble_framework FALSE)
+                list(APPEND new_ldflags "${_arg}")
+            endif()
+        endforeach()
+        set_target_properties(${GST_TARGET} PROPERTIES
+            INTERFACE_LINK_OPTIONS "${new_ldflags}"
+        )
+    else()
+        set_target_properties(${TARGET} PROPERTIES
+            INTERFACE_LINK_OPTIONS "${${PC_STATIC_LDFLAGS_OTHER}}"
+        )
+    endif()
+endmacro()
+
+################################
+#      Set up the targets      #
+################################
+
+# for setting the default GTlsDatabase
+if(mobile IN_LIST GStreamer_FIND_COMPONENTS)
+    list(APPEND GStreamer_EXTRA_DEPS gio-2.0)
+endif()
+
+if (ANDROID)
+    list(APPEND GStreamer_EXTRA_DEPS zlib)
+endif()
+
+# Prepare Android hotfixes for x264
+if(ANDROID_ABI STREQUAL "armeabi")
+    set(NEEDS_NOTEXT_FIX TRUE)
+    set(NEEDS_BSYMBOLIC_FIX TRUE)
+elseif(ANDROID_ABI STREQUAL "x86")
+    set(NEEDS_NOTEXT_FIX TRUE)
+    set(NEEDS_BSYMBOLIC_FIX TRUE)
+elseif(ANDROID_ABI STREQUAL "x86_64")
+    set(NEEDS_BSYMBOLIC_FIX TRUE)
+endif()
+
+find_package(PkgConfig REQUIRED)
+
+# GStreamer's pkg-config modules are a MUST -- but we'll test them below
+pkg_check_modules(PC_GStreamer gstreamer-1.0 ${GStreamer_EXTRA_DEPS})
+# Simulate the list that'll be wholearchive'd.
+# Unfortunately, this uses an option only available with pkgconf.
+# set(_old_pkg_config_executable "${PKG_CONFIG_EXECUTABLE}")
+# set(PKG_CONFIG_EXECUTABLE ${PKG_CONFIG_EXECUTABLE} --maximum-traverse-depth=1)
+# pkg_check_modules(PC_GStreamer_NoDeps QUIET REQUIRED gstreamer-1.0 ${GStreamer_EXTRA_DEPS})
+# set(PKG_CONFIG_EXECUTABLE "${_old_pkg_config_executable}")
+
+set(GStreamer_VERSION "${PC_GStreamer_VERSION}")
+
+# Test validity of the paths
+# NOTE: only paths that must be considered are those provided by pkg-config
+# NOTE 2: also exclude sysroots
+find_path(GStreamer_INCLUDE_DIR
+    NAMES gst/gstversion.h
+    PATHS ${PC_GStreamer_INCLUDE_DIRS}
+    PATH_SUFFIXES gstreamer-1.0
+    NO_DEFAULT_PATH
+    NO_CMAKE_FIND_ROOT_PATH
+    REQUIRED
+)
+
+find_library(GStreamer_LIBRARY
+    NAMES gstreamer-1.0
+    PATHS ${PC_GStreamer_LIBRARY_DIRS}
+    NO_DEFAULT_PATH
+    NO_CMAKE_FIND_ROOT_PATH
+    REQUIRED
+)
+
+# Android: Ignore these libraries when constructing the IMPORTED_LOCATION
+set(_gst_IGNORED_SYSTEM_LIBRARIES c c++ unwind m dl)
+if (ANDROID)
+    list(APPEND _gst_IGNORED_SYSTEM_LIBRARIES log GLESv2 EGL OpenSLES android)
+elseif(APPLE)
+    list(APPEND _gst_IGNORED_SYSTEM_LIBRARIES iconv resolv System)
+endif()
+
+# Normalize library flags coming from srt/haisrt
+# https://github.com/Haivision/srt/commit/b90b64d26f850fb0efcc4cdd8b31cbf74bd4db0c
+set(_gst_SRT_REGEX_PATCH "^:lib(.+)\\.(a|so|lib|dylib)$")
+
+if(PC_GStreamer_FOUND AND (NOT TARGET GStreamer::GStreamer))
+    # This is not UNKNOWN but INTERFACE, as we only intend to
+    # make a target suitable for downstream consumption.
+    # FindPkgConfig already takes care of things, however it is totally unable
+    # to discern between shared and static libraries when populating
+    # xxx_STATIC_LINK_LIBRARIES, so we need to populate them manually.
+    add_library(GStreamer::GStreamer INTERFACE IMPORTED)
+
+    if (GStreamer_USE_STATIC_LIBS)
+        _gst_filter_missing_directories(PC_GStreamer_STATIC_INCLUDE_DIRS)
+        set_target_properties(GStreamer::GStreamer PROPERTIES
+            INTERFACE_COMPILE_OPTIONS "${PC_GStreamer_STATIC_CFLAGS_OTHER}"
+            INTERFACE_INCLUDE_DIRECTORIES "${PC_GStreamer_STATIC_INCLUDE_DIRS}"
+        )
+        _gst_apply_frameworks(PC_GStreamer_STATIC_LDFLAGS_OTHER GStreamer::GStreamer)
+    else()
+        set_target_properties(GStreamer::GStreamer PROPERTIES
+            INTERFACE_COMPILE_OPTIONS "${PC_GStreamer_CFLAGS_OTHER}"
+            INTERFACE_INCLUDE_DIRECTORIES "${PC_GStreamer_INCLUDE_DIRS}"
+            INTERFACE_LINK_OPTIONS "${PC_GStreamer_LDFLAGS_OTHER}"
+        )
+    endif()
+
+    add_library(GStreamer::deps INTERFACE IMPORTED)
+
+    if (NOT GStreamer_USE_STATIC_LIBS)
+        set_target_properties(GStreamer::deps PROPERTIES
+            INTERFACE_LINK_LIBRARIES "${PC_GStreamer_LINK_LIBRARIES}"
+        )
+        # We're done
+    else()
+        # Handle all libraries, even those specified with -l:libfoo.a (srt)
+        # Due to the unavailability of pkgconf's `--maximum-traverse-depth`
+        # on stock pkg-config, I attempt to simulate it through the shared
+        # libraries listing.
+        # If pkgconf is available, replace all PC_GStreamer_ entries with
+        # PC_GStreamer_NoDeps and uncomment the code block above.
+        foreach(LOCAL_LIB IN LISTS PC_GStreamer_LIBRARIES)
+            # list(TRANSFORM REPLACE) is of no use here
+            # https://gitlab.kitware.com/cmake/cmake/-/issues/16899
+            if (LOCAL_LIB MATCHES "${_gst_SRT_REGEX_PATCH}")
+                string(REGEX REPLACE "${_gst_SRT_REGEX_PATCH}" "\\1" LOCAL_LIB "${LOCAL_LIB}")
+            endif()
+            string(MAKE_C_IDENTIFIER "_gst_${LOCAL_LIB}" GST_LOCAL_LIB)
+            if (NOT ${GST_LOCAL_LIB})
+                _gst_find_library(${LOCAL_LIB} ${GST_LOCAL_LIB} ${PC_GStreamer_STATIC_LIBRARY_DIRS})
+            endif()
+            target_link_libraries(GStreamer::GStreamer INTERFACE
+                "${${GST_LOCAL_LIB}}"
+            )
+        endforeach()
+
+        _gst_apply_link_libraries(ON PC_GStreamer_STATIC_LIBRARIES PC_GStreamer_STATIC_LIBRARY_DIRS GStreamer::deps)
+    endif()
+
+    target_link_libraries(GStreamer::GStreamer
+        INTERFACE
+            GStreamer::deps
+    )
+endif()
+
+# Now, let's set up targets for each of the components supplied
+set(_gst_CUSTOM_TARGETS mobile)
+if (PC_GStreamer_FOUND)
+    # These are the required plugins
+    set(GSTREAMER_PLUGINS ${GStreamer_FIND_COMPONENTS})
+    list(REMOVE_DUPLICATES GSTREAMER_PLUGINS)
+    # These are custom handled targets, and must be skipped from the loop
+    list(REMOVE_ITEM GSTREAMER_PLUGINS ${_gst_CUSTOM_TARGETS})
+    # These are the API packages
+    set(GSTREAMER_APIS ${GSTREAMER_PLUGINS})
+    list(FILTER GSTREAMER_APIS INCLUDE REGEX "^api_")
+    # Filter them out, although they're handled the same
+    # they cannot be considered for the purposes of initialization
+    list(FILTER GSTREAMER_PLUGINS EXCLUDE REGEX "^api_")
+endif()
+
+if (PC_GStreamer_FOUND AND GSTREAMER_IS_MOBILE AND (mobile IN_LIST GStreamer_FIND_COMPONENTS) AND (NOT TARGET GStreamer::mobile))
+    # Generate the plugins' declaration strings
+    # (don't append a semicolon, CMake does it as part of the list)
+    list(TRANSFORM GSTREAMER_PLUGINS
+        PREPEND "\nGST_PLUGIN_STATIC_DECLARE\("
+        OUTPUT_VARIABLE PLUGINS_DECLARATION
+    )
+    list(TRANSFORM PLUGINS_DECLARATION
+        APPEND "\)"
+        OUTPUT_VARIABLE PLUGINS_DECLARATION
+    )
+    if(PLUGINS_DECLARATION)
+        set(PLUGINS_DECLARATION "${PLUGINS_DECLARATION};")
+    endif()
+
+    # Generate the plugins' registration strings
+    list(TRANSFORM GSTREAMER_PLUGINS
+        PREPEND "\nGST_PLUGIN_STATIC_REGISTER\("
+        OUTPUT_VARIABLE PLUGINS_REGISTRATION
+    )
+    list(TRANSFORM PLUGINS_REGISTRATION
+        APPEND "\)"
+        OUTPUT_VARIABLE PLUGINS_REGISTRATION
+    )
+    if(PLUGINS_REGISTRATION)
+        set(PLUGINS_REGISTRATION "${PLUGINS_REGISTRATION};")
+    endif()
+
+    # Generate list of gio modules
+    if (NOT G_IO_MODULES)
+        set(G_IO_MODULES)
+    endif()
+    list(TRANSFORM G_IO_MODULES
+        PREPEND "gio"
+        OUTPUT_VARIABLE G_IO_MODULES_LIBS
+    )
+    list(TRANSFORM G_IO_MODULES
+        PREPEND "\nGST_G_IO_MODULE_DECLARE\("
+        OUTPUT_VARIABLE G_IO_MODULES_DECLARE
+    )
+    list(TRANSFORM G_IO_MODULES_DECLARE
+        APPEND "\);"
+        OUTPUT_VARIABLE G_IO_MODULES_DECLARE
+    )
+    if(G_IO_MODULES_DECLARE)
+        set(G_IO_MODULES_DECLARE "${G_IO_MODULES_DECLARE};")
+    endif()
+    list(TRANSFORM G_IO_MODULES
+        PREPEND "\nGST_G_IO_MODULE_LOAD\("
+        OUTPUT_VARIABLE G_IO_MODULES_LOAD
+    )
+    list(TRANSFORM G_IO_MODULES_LOAD
+        APPEND "\)"
+        OUTPUT_VARIABLE G_IO_MODULES_LOAD
+    )
+    if(G_IO_MODULES_LOAD)
+        set(G_IO_MODULES_LOAD "${G_IO_MODULES_LOAD};")
+    endif()
+
+    # Generates a source file that declares and registers all the required plugins
+    if (ANDROID)
+        configure_file(
+            "${CMAKE_CURRENT_LIST_DIR}/GStreamer/gstreamer_android-1.0.c.in"
+            "${GStreamer_Mobile_MODULE_NAME}.c"
+        )
+    else()
+        configure_file(
+            "${CMAKE_CURRENT_LIST_DIR}/GStreamer/gst_ios_init.m.in"
+            "${GStreamer_Mobile_MODULE_NAME}.m"
+        )
+    endif()
+
+    # Creates a shared library including gstreamer, its plugins and all the dependencies
+    if (ANDROID)
+        add_library(GStreamerMobile
+            SHARED
+                "${GStreamer_Mobile_MODULE_NAME}.c"
+        )
+        target_link_options(GStreamerMobile PRIVATE -fuse-ld=lld)
+    else()
+        add_library(GStreamerMobile SHARED)
+        enable_language(OBJC OBJCXX)
+        target_sources(GStreamerMobile
+            PRIVATE
+                "${GStreamer_Mobile_MODULE_NAME}.m"
+        )
+        set_source_files_properties("${GStreamer_Mobile_MODULE_NAME}.m"
+            PROPERTIES
+                LANGUAGE OBJC
+        )
+        find_library(Foundation_LIB Foundation REQUIRED)
+        target_link_libraries(GStreamerMobile
+            PRIVATE
+                ${Foundation_LIB}
+        )
+    endif()
+    add_library(GStreamer::mobile ALIAS GStreamerMobile)
+
+    # Assume it's C++ for the sake of gstsoundtouch
+    if (APPLE)
+        set_target_properties(
+            GStreamerMobile
+            PROPERTIES
+                LINKER_LANGUAGE OBJCXX
+        )
+    else()
+        set_target_properties(
+            GStreamerMobile
+            PROPERTIES
+                LINKER_LANGUAGE CXX
+        )
+    endif()
+    set_target_properties(
+        GStreamerMobile
+        PROPERTIES
+            NO_SONAME TRUE
+            LIBRARY_OUTPUT_NAME ${GStreamer_Mobile_MODULE_NAME}
+            FRAMEWORK TRUE
+            FRAMEWORK_VERSION A
+            MACOSX_FRAMEWORK_IDENTIFIER org.gstreamer.GStreamerMobile
+            VERSION ${PC_GStreamer_VERSION}
+            SOVERSION ${PC_GStreamer_VERSION}
+    )
+
+    # Handle all libraries, even those specified with -l:libfoo.a (srt)
+    # Due to the unavailability of pkgconf's `--maximum-traverse-depth`
+    # on stock pkg-config, I attempt to simulate it through the shared
+    # libraries listing.
+    # If pkgconf is available, replace all PC_GStreamer_ entries with
+    # PC_GStreamer_NoDeps and uncomment the code block above.
+    foreach(LOCAL_LIB IN LISTS PC_GStreamer_LIBRARIES)
+        # list(TRANSFORM REPLACE) is of no use here
+        # https://gitlab.kitware.com/cmake/cmake/-/issues/16899
+        if (LOCAL_LIB MATCHES "${_gst_SRT_REGEX_PATCH}")
+            string(REGEX REPLACE "${_gst_SRT_REGEX_PATCH}" "\\1" LOCAL_LIB "${LOCAL_LIB}")
+        endif()
+        string(MAKE_C_IDENTIFIER "_gst_${LOCAL_LIB}" GST_LOCAL_LIB)
+        if (NOT ${GST_LOCAL_LIB})
+            _gst_find_library(${LOCAL_LIB} ${GST_LOCAL_LIB} ${PC_GStreamer_STATIC_LIBRARY_DIRS})
+        endif()
+        if ("${${GST_LOCAL_LIB}}" IN_LIST _gst_IGNORED_SYSTEM_LIBRARIES)
+            target_link_libraries(GStreamerMobile PRIVATE
+                "${${GST_LOCAL_LIB}}"
+            )
+        elseif (MSVC)
+            target_link_libraries(GStreamerMobile PRIVATE
+                "/WHOLEARCHIVE:${${GST_LOCAL_LIB}}"
+            )
+        elseif(APPLE)
+            target_link_libraries(GStreamerMobile PRIVATE
+                "-Wl,-force_load,${${GST_LOCAL_LIB}}"
+            )
+        else()
+            target_link_libraries(GStreamerMobile PRIVATE
+                "-Wl,--whole-archive,${${GST_LOCAL_LIB}},--no-whole-archive"
+            )
+        endif()
+    endforeach()
+
+    target_link_libraries(
+        GStreamerMobile
+        PRIVATE
+            GStreamer::deps
+    )
+
+    target_link_options(
+        GStreamerMobile
+        INTERFACE
+            $<TARGET_PROPERTY:GStreamer::GStreamer,INTERFACE_LINK_OPTIONS>
+    )
+
+    target_include_directories(
+        GStreamerMobile
+        INTERFACE
+            $<TARGET_PROPERTY:GStreamer::GStreamer,INTERFACE_INCLUDE_DIRECTORIES>
+    )
+
+    # Text relocations are required for all 32-bit objects. We
+    # must disable the warning to allow linking with lld. Unlike gold, ld which
+    # will silently allow text relocations, lld support must be explicit.
+    #
+    # See https://crbug.com/911658#c19 for more information. See also
+    # https://trac.ffmpeg.org/ticket/7878
+    if(DEFINED NEEDS_NOTEXT_FIX)
+        target_link_options(
+            GStreamerMobile
+            PRIVATE
+                "-Wl,-z,notext"
+        )
+    endif()
+
+    # resolve textrels in the x86 asm
+    if(DEFINED NEEDS_BSYMBOLIC_FIX)
+        target_link_options(
+            GStreamerMobile
+            PRIVATE
+                "-Wl,-Bsymbolic"
+        )
+    endif()
+
+    if (ANDROID)
+        # Collect all Java-based initializer classes
+        set(GSTREAMER_PLUGINS_CLASSES)
+        foreach(LOCAL_PLUGIN IN LISTS GSTREAMER_PLUGINS)
+            file(GLOB_RECURSE
+                LOCAL_PLUGIN_CLASS
+                FOLLOW_SYMLINKS
+                RELATIVE "${GStreamer_NDK_BUILD_PATH}"
+                "${GStreamer_NDK_BUILD_PATH}/${LOCAL_PLUGIN}/*.java"
+            )
+            list(APPEND GSTREAMER_PLUGINS_CLASSES ${LOCAL_PLUGIN_CLASS})
+        endforeach()
+
+        # Same as above, but collect the plugins themselves
+        set(GSTREAMER_PLUGINS_WITH_CLASSES)
+        foreach(LOCAL_PLUGIN IN LISTS GSTREAMER_PLUGINS)
+            if(EXISTS "${GStreamer_NDK_BUILD_PATH}/${LOCAL_PLUGIN}/")
+                list(APPEND GSTREAMER_PLUGINS_WITH_CLASSES ${LOCAL_PLUGIN})
+            endif()
+        endforeach()
+
+        add_custom_target(
+            "copyjavasource_${ANDROID_ABI}"
+        )
+
+        foreach(LOCAL_FILE IN LISTS GSTREAMER_PLUGINS_CLASSES)
+            string(MAKE_C_IDENTIFIER "cp_${LOCAL_FILE}" COPYJAVASOURCE_TGT)
+            add_custom_target(
+                ${COPYJAVASOURCE_TGT}
+                COMMAND
+                    "${CMAKE_COMMAND}" -E make_directory
+                    "${GStreamer_JAVA_SRC_DIR}/org/freedesktop/gstreamer/"
+                COMMAND
+                    "${CMAKE_COMMAND}" -E copy
+                    "${GStreamer_NDK_BUILD_PATH}/${LOCAL_FILE}"
+                    "${GStreamer_JAVA_SRC_DIR}/org/freedesktop/gstreamer/"
+                BYPRODUCTS
+                    "${GStreamer_JAVA_SRC_DIR}/org/freedesktop/gstreamer/${LOCAL_FILE}"
+            )
+            add_dependencies(copyjavasource_${ANDROID_ABI} ${COPYJAVASOURCE_TGT})
+        endforeach()
+
+        # FIXME: Make GStreamer.java configure friendly
+        file(READ "${GStreamer_NDK_BUILD_PATH}/GStreamer.java" JAVA_INPUT)
+        if(ca_certificates IN_LIST GStreamer_FIND_COMPONENTS)
+            string(REPLACE "//copyCaCertificates" "copyCaCertificates" JAVA_INPUT "${JAVA_INPUT}")
+        endif()
+        if(fonts IN_LIST GStreamer_FIND_COMPONENTS)
+            string(REPLACE "//copyFonts" "copyFonts" JAVA_INPUT "${JAVA_INPUT}")
+        endif()
+        file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/GStreamer.java" "${JAVA_INPUT}")
+
+        add_custom_target(
+            enable_includes_in_gstreamer_java
+            COMMAND
+                "${CMAKE_COMMAND}" -E make_directory
+                "${GStreamer_JAVA_SRC_DIR}/org/freedesktop/gstreamer/"
+            COMMAND
+                "${CMAKE_COMMAND}" -E copy
+                "${CMAKE_CURRENT_BINARY_DIR}/GStreamer.java"
+                "${GStreamer_JAVA_SRC_DIR}/org/freedesktop/gstreamer/GStreamer.java"
+            BYPRODUCTS
+                "${GStreamer_JAVA_SRC_DIR}/org/freedesktop/gstreamer/GStreamer.java"
+        )
+        add_dependencies(copyjavasource_${ANDROID_ABI} enable_includes_in_gstreamer_java)
+        add_dependencies(GStreamerMobile copyjavasource_${ANDROID_ABI})
+    endif()
+
+    # And, finally, set the GIO modules up
+    if (G_IO_MODULES_LIBS)
+        add_library(GStreamer::gio_modules INTERFACE IMPORTED)
+        _gst_apply_link_libraries(OFF G_IO_MODULES_LIBS G_IO_MODULES_PATH GStreamer::gio_modules)
+        target_link_libraries(
+            GStreamerMobile
+            PRIVATE
+                GStreamer::gio_modules
+        )
+    endif()
+    set(GStreamer_mobile_FOUND TRUE)
+endif()
+
+foreach(_gst_PLUGIN IN LISTS GSTREAMER_PLUGINS)
+    # Safety valve for the custom targets above
+    if ("${_gst_plugin}" IN_LIST _gst_CUSTOM_TARGETS)
+        continue()
+    endif()
+
+    if (TARGET GStreamer::${_gst_PLUGIN})
+        continue()
+    endif()
+
+    if (GStreamer_FIND_REQUIRED_${_gst_PLUGIN})
+        set(_gst_PLUGIN_REQUIRED REQUIRED)
+    else()
+        set(_gst_PLUGIN_REQUIRED)
+    endif()
+
+    pkg_check_modules(PC_GStreamer_${_gst_PLUGIN} "gst${_gst_PLUGIN}")
+
+    set(GStreamer_${_gst_PLUGIN}_FOUND "${PC_GStreamer_${_gst_PLUGIN}_FOUND}")
+    if (NOT GStreamer_${_gst_PLUGIN}_FOUND)
+        continue()
+    endif()
+
+    add_library(GStreamer::${_gst_PLUGIN} INTERFACE IMPORTED)
+    _gst_filter_missing_directories(PC_GStreamer_${_gst_PLUGIN}_INCLUDE_DIRS)
+    set_target_properties(GStreamer::${_gst_PLUGIN} PROPERTIES
+        INTERFACE_COMPILE_OPTIONS "${PC_GStreamer_${_gst_PLUGIN}_CFLAGS_OTHER}"
+        INTERFACE_INCLUDE_DIRECTORIES "${PC_GStreamer_${_gst_PLUGIN}_INCLUDE_DIRS}"
+    )
+    if (GStreamer_USE_STATIC_LIBS)
+        _gst_apply_frameworks(PC_GStreamer_${_gst_PLUGIN}_STATIC_LDFLAGS_OTHER GStreamer::${_gst_PLUGIN})
+    else()
+        set_target_properties(GStreamer::${_gst_PLUGIN} PROPERTIES
+            INTERFACE_LINK_OPTIONS "${PC_GStreamer_${_gst_PLUGIN}_LDFLAGS_OTHER}"
+            INTERFACE_LINK_LIBRARIES "${PC_GStreamer_${_gst_PLUGIN}_LINK_LIBRARIES}"
+        )
+        # We're done
+        continue()
+    endif()
+
+    # Handle all libraries, even those specified with -l:libfoo.a (srt)
+    _gst_apply_link_libraries(OFF PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARIES PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARY_DIRS GStreamer::${_gst_PLUGIN})
+
+    if (TARGET GStreamerMobile)
+        target_link_libraries(
+            GStreamerMobile
+            PRIVATE
+                GStreamer::${_gst_PLUGIN}
+        )
+    endif()
+endforeach()
+
+foreach(_gst_PLUGIN IN LISTS GSTREAMER_APIS)
+    # Safety valve for the custom targets above
+    if ("${_gst_plugin}" IN_LIST _gst_CUSTOM_TARGETS)
+        continue()
+    endif()
+
+    if (TARGET GStreamer::${_gst_PLUGIN})
+        continue()
+    endif()
+
+    if (GStreamer_FIND_REQUIRED_${_gst_PLUGIN})
+        set(_gst_PLUGIN_REQUIRED REQUIRED)
+    else()
+        set(_gst_PLUGIN_REQUIRED)
+    endif()
+
+    string(REGEX REPLACE "^api_(.+)" "\\1" _gst_PLUGIN_PC "${_gst_PLUGIN}")
+    string(REPLACE "_" "-" _gst_PLUGIN_PC "${_gst_PLUGIN_PC}")
+
+    pkg_check_modules(PC_GStreamer_${_gst_PLUGIN} "gstreamer-${_gst_PLUGIN_PC}-1.0")
+
+    set(GStreamer_${_gst_PLUGIN}_FOUND "${PC_GStreamer_${_gst_PLUGIN}_FOUND}")
+    if (NOT GStreamer_${_gst_PLUGIN}_FOUND)
+        continue()
+    endif()
+
+    add_library(GStreamer::${_gst_PLUGIN} INTERFACE IMPORTED)
+    _gst_filter_missing_directories(PC_GStreamer_${_gst_PLUGIN}_INCLUDE_DIRS)
+    set_target_properties(GStreamer::${_gst_PLUGIN} PROPERTIES
+        INTERFACE_COMPILE_OPTIONS "${PC_GStreamer_${_gst_PLUGIN}_CFLAGS_OTHER}"
+        INTERFACE_INCLUDE_DIRECTORIES "${PC_GStreamer_${_gst_PLUGIN}_INCLUDE_DIRS}"
+        INTERFACE_LINK_OPTIONS "${PC_GStreamer_${_gst_PLUGIN}_LDFLAGS_OTHER}"
+    )
+    if (GStreamer_USE_STATIC_LIBS)
+        _gst_apply_frameworks(PC_GStreamer_${_gst_PLUGIN}_STATIC_LDFLAGS_OTHER GStreamer::${_gst_PLUGIN})
+    else()
+        set_target_properties(GStreamer::${_gst_PLUGIN} PROPERTIES
+            INTERFACE_LINK_OPTIONS "${PC_GStreamer_${_gst_PLUGIN}_LDFLAGS_OTHER}"
+            INTERFACE_LINK_LIBRARIES "${PC_GStreamer_${_gst_PLUGIN}_LINK_LIBRARIES}"
+        )
+        # We're done
+        continue()
+    endif()
+
+    # Handle all libraries, even those specified with -l:libfoo.a (srt)
+    _gst_apply_link_libraries(OFF PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARIES PC_GStreamer_${_gst_PLUGIN}_STATIC_LIBRARY_DIRS GStreamer::${_gst_PLUGIN})
+
+    if (TARGET GStreamerMobile)
+        target_link_libraries(
+            GStreamerMobile
+            PRIVATE
+                GStreamer::${_gst_PLUGIN}
+        )
+    endif()
+endforeach()
+
+# Perform final validation
+include(FindPackageHandleStandardArgs)
+set(_gst_handle_version_range)
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.19.0")
+    set(_gst_handle_version_range "HANDLE_VERSION_RANGE")
+endif()
+find_package_handle_standard_args(GStreamer
+    REQUIRED_VARS
+        GStreamer_LIBRARY
+        GStreamer_INCLUDE_DIR
+    VERSION_VAR GStreamer_VERSION
+    ${_gst_handle_version_range}
+    HANDLE_COMPONENTS
+)
