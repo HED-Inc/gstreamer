@@ -4,7 +4,7 @@ tests = [
     ['Test gst', 'test_gst.py'],
     ['Test fundamentals', 'test_types.py'],
     ['Test plugins', 'test_plugin.py'],
-    ['Test analytics', 'test_analytics.py'],
+    ['Test analytics', 'test_analytics.py', ['gst-plugins-bad/gst-libs/gst/analytics', 'gst-plugins-base/gst-libs/gst/video']],
 ]
 
 runcmd = run_command(python, '-c', '''with open("@0@/mesonconfig.py", "w") as f:
@@ -30,5 +30,19 @@ foreach i: tests
         'gst-python@' + meson.project_build_root())
     env.set('GST_PLUGIN_PATH_1_0', meson.global_build_root(), pluginsdirs + pypluginsdir)
     env.set('GST_REGISTRY', join_paths(meson.current_build_dir(), '@0@.registry'.format(test_name)))
+
+    foreach j: i.get(2, [])
+      path = meson.project_build_root() / '..' / j
+      env.append('GI_TYPELIB_PATH', path)
+
+      if build_machine.system() == 'windows'
+	env.append('PATH', path)
+      elif build_machine.system() == 'linux'
+	env.append('LD_LIBRARY_PATH', path)
+      else
+	env.append('DYLD_LIBRARY_PATH', path)
+      endif
+    endforeach
+
     test(test_name, python, args: [runtests, i.get(1)], env: env)
 endforeach
