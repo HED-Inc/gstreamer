@@ -1457,17 +1457,20 @@ gst_nv_av1_encoder_create_class_data (GstObject * device, gpointer session,
 #ifdef G_OS_WIN32
   if (device_mode == GST_NV_ENCODER_DEVICE_D3D11) {
     gst_caps_set_features (sink_caps, 0,
-        gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_D3D11_MEMORY, nullptr));
+        gst_caps_features_new_static_str (GST_CAPS_FEATURE_MEMORY_D3D11_MEMORY,
+            nullptr));
   }
 #endif
 
   if (device_mode == GST_NV_ENCODER_DEVICE_CUDA) {
     gst_caps_set_features (sink_caps, 0,
-        gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_CUDA_MEMORY, nullptr));
+        gst_caps_features_new_static_str (GST_CAPS_FEATURE_MEMORY_CUDA_MEMORY,
+            nullptr));
 #ifdef HAVE_CUDA_GST_GL
     GstCaps *gl_caps = gst_caps_copy (system_caps);
     gst_caps_set_features (gl_caps, 0,
-        gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_GL_MEMORY, nullptr));
+        gst_caps_features_new_static_str (GST_CAPS_FEATURE_MEMORY_GL_MEMORY,
+            nullptr));
     gst_caps_append (sink_caps, gl_caps);
 #endif
   }
@@ -1757,14 +1760,16 @@ gst_nv_av1_encoder_register_auto_select (GstPlugin * plugin,
   if (cuda_device_id_size > 0) {
     GstCaps *cuda_caps = gst_caps_copy (system_caps);
     gst_caps_set_features (cuda_caps, 0,
-        gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_CUDA_MEMORY, nullptr));
+        gst_caps_features_new_static_str (GST_CAPS_FEATURE_MEMORY_CUDA_MEMORY,
+            nullptr));
     gst_caps_append (sink_caps, cuda_caps);
   }
 #ifdef G_OS_WIN32
   if (adapter_luid_size > 0) {
     GstCaps *d3d11_caps = gst_caps_copy (system_caps);
     gst_caps_set_features (d3d11_caps, 0,
-        gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_D3D11_MEMORY, nullptr));
+        gst_caps_features_new_static_str (GST_CAPS_FEATURE_MEMORY_D3D11_MEMORY,
+            nullptr));
     gst_caps_append (sink_caps, d3d11_caps);
   }
 #endif
@@ -1772,7 +1777,8 @@ gst_nv_av1_encoder_register_auto_select (GstPlugin * plugin,
 #ifdef HAVE_CUDA_GST_GL
   GstCaps *gl_caps = gst_caps_copy (system_caps);
   gst_caps_set_features (gl_caps, 0,
-      gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_GL_MEMORY, nullptr));
+      gst_caps_features_new_static_str (GST_CAPS_FEATURE_MEMORY_GL_MEMORY,
+          nullptr));
   gst_caps_append (sink_caps, gl_caps);
 #endif
 

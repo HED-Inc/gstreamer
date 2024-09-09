@@ -80,16 +80,18 @@ struct _Qt6GLWindowPrivate
   GstBuffer *produced_buffer;
 };
 
-Qt6GLWindow::Qt6GLWindow (QWindow * parent, QQuickWindow *src)
-  : QQuickWindow( parent ), source (src)
+Qt6GLWindow::Qt6GLWindow (QWindow * parent, QQuickWindow * src)
+:  QQuickWindow (parent), source (src)
 {
-  QGuiApplication *app = static_cast<QGuiApplication *> (QCoreApplication::instance ());
+  QGuiApplication *app =
+      static_cast < QGuiApplication * >(QCoreApplication::instance ());
   static gsize _debug;
 
   g_assert (app != NULL);
 
   if (g_once_init_enter (&_debug)) {
-    GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "qt6glwindow", 0, "Qt6 GL QuickWindow");
+    GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "qt6glwindow", 0,
+        "Qt6 GL QuickWindow");
     g_once_init_leave (&_debug, 1);
   }
 
@@ -98,23 +100,29 @@ Qt6GLWindow::Qt6GLWindow (QWindow * parent, QQuickWindow *src)
   g_mutex_init (&this->priv->lock);
   g_cond_init (&this->priv->update_cond);
 
-  this->priv->display = gst_qml6_get_gl_display(FALSE);
+  this->priv->display = gst_qml6_get_gl_display (FALSE);
   this->priv->result = TRUE;
   this->priv->internal_format = GL_RGBA;
 
-  connect (source, SIGNAL(beforeRendering()), this, SLOT(beforeRendering()), Qt::DirectConnection);
-  connect (source, SIGNAL(afterRendering()), this, SLOT(afterRendering()), Qt::DirectConnection);
-  if (source->isSceneGraphInitialized())
-    source->scheduleRenderJob(new RenderJob(std::bind(&Qt6GLWindow::onSceneGraphInitialized, this)), QQuickWindow::BeforeSynchronizingStage);
+  connect (source, SIGNAL (beforeRendering ()), this, SLOT (beforeRendering ()),
+      Qt::DirectConnection);
+  connect (source, SIGNAL (afterRendering ()), this, SLOT (afterRendering ()),
+      Qt::DirectConnection);
+  if (source->isSceneGraphInitialized ())
+    source->scheduleRenderJob (new RenderJob (std::
+            bind (&Qt6GLWindow::onSceneGraphInitialized, this)),
+        QQuickWindow::BeforeSynchronizingStage);
   else
-    connect (source, SIGNAL(sceneGraphInitialized()), this, SLOT(onSceneGraphInitialized()), Qt::DirectConnection);
+    connect (source, SIGNAL (sceneGraphInitialized ()), this,
+        SLOT (onSceneGraphInitialized ()), Qt::DirectConnection);
 
-  connect (source, SIGNAL(sceneGraphInvalidated()), this, SLOT(onSceneGraphInvalidated()), Qt::DirectConnection);
+  connect (source, SIGNAL (sceneGraphInvalidated ()), this,
+      SLOT (onSceneGraphInvalidated ()), Qt::DirectConnection);
 
   GST_DEBUG ("%p init Qt Window", this->priv->display);
 }
 
-Qt6GLWindow::~Qt6GLWindow()
+Qt6GLWindow::~Qt6GLWindow ()
 {
   GST_DEBUG ("deinit Qt Window");
   g_mutex_clear (&this->priv->lock);
@@ -135,7 +143,7 @@ Qt6GLWindow::~Qt6GLWindow()
 }
 
 void
-Qt6GLWindow::beforeRendering()
+Qt6GLWindow::beforeRendering ()
 {
   g_mutex_lock (&this->priv->lock);
 
@@ -145,23 +153,25 @@ Qt6GLWindow::beforeRendering()
     return;
   }
 
-  QSize size = source->size();
+  QSize size = source->size ();
 
   if (!this->priv->gl_allocator)
     this->priv->gl_allocator =
-        (GstGLBaseMemoryAllocator *) gst_gl_memory_allocator_get_default (this->priv->context);
+        (GstGLBaseMemoryAllocator *)
+        gst_gl_memory_allocator_get_default (this->priv->context);
 
-  if (GST_VIDEO_INFO_WIDTH (&this->priv->v_info) != size.width()
-      || GST_VIDEO_INFO_HEIGHT (&this->priv->v_info) != size.height()) {
+  if (GST_VIDEO_INFO_WIDTH (&this->priv->v_info) != size.width ()
+      || GST_VIDEO_INFO_HEIGHT (&this->priv->v_info) != size.height ()) {
     this->priv->new_caps = TRUE;
 
     gst_video_info_set_format (&this->priv->v_info, GST_VIDEO_FORMAT_RGBA,
-        size.width(), size.height());
+        size.width (), size.height ());
 
     if (this->priv->gl_params) {
-      GstGLVideoAllocationParams *gl_vid_params = (GstGLVideoAllocationParams *) this->priv->gl_params;
-      if (GST_VIDEO_INFO_WIDTH (gl_vid_params->v_info) != source->width()
-            || GST_VIDEO_INFO_HEIGHT (gl_vid_params->v_info) != source->height())
+      GstGLVideoAllocationParams *gl_vid_params =
+          (GstGLVideoAllocationParams *) this->priv->gl_params;
+      if (GST_VIDEO_INFO_WIDTH (gl_vid_params->v_info) != source->width ()
+          || GST_VIDEO_INFO_HEIGHT (gl_vid_params->v_info) != source->height ())
         this->priv->gl_params = NULL;
       gst_clear_buffer (&this->priv->buffer);
     }
@@ -182,7 +192,7 @@ Qt6GLWindow::beforeRendering()
   }
 
   if (!gst_video_frame_map (&this->priv->mapped_frame, &this->priv->v_info,
-        this->priv->buffer, (GstMapFlags) (GST_MAP_WRITE | GST_MAP_GL))) {
+          this->priv->buffer, (GstMapFlags) (GST_MAP_WRITE | GST_MAP_GL))) {
     GST_WARNING ("failed map video frame");
     gst_clear_buffer (&this->priv->buffer);
     return;
@@ -191,17 +201,18 @@ Qt6GLWindow::beforeRendering()
   if (!this->priv->useDefaultFbo) {
     guint tex_id = *(guint *) this->priv->mapped_frame.data[0];
 
-    source->setRenderTarget(QQuickRenderTarget::fromOpenGLTexture(tex_id, source->size()));
+    source->setRenderTarget (QQuickRenderTarget::fromOpenGLTexture (tex_id,
+            source->size ()));
   } else if (this->priv->useDefaultFbo) {
     GST_DEBUG ("use default fbo for render target");
-    source->setRenderTarget(QQuickRenderTarget());
+    source->setRenderTarget (QQuickRenderTarget ());
   }
 
   g_mutex_unlock (&this->priv->lock);
 }
 
 void
-Qt6GLWindow::afterRendering()
+Qt6GLWindow::afterRendering ()
 {
   gboolean ret;
   guint width, height;
@@ -231,7 +242,9 @@ Qt6GLWindow::afterRendering()
 
     gl->BindFramebuffer (fbo_target, 0);
 
-    ret = gst_gl_context_check_framebuffer_status (this->priv->other_context, fbo_target);
+    ret =
+        gst_gl_context_check_framebuffer_status (this->priv->other_context,
+        fbo_target);
     if (!ret) {
       GST_ERROR ("FBO errors");
       goto errors;
@@ -242,24 +255,27 @@ Qt6GLWindow::afterRendering()
     if (gl->BlitFramebuffer) {
       gl->BindFramebuffer (GL_DRAW_FRAMEBUFFER, this->priv->fbo);
       gl->FramebufferTexture2D (GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                GL_TEXTURE_2D, dst_tex, 0);
+          GL_TEXTURE_2D, dst_tex, 0);
 
-      ret = gst_gl_context_check_framebuffer_status (this->priv->other_context, GL_DRAW_FRAMEBUFFER);
+      ret =
+          gst_gl_context_check_framebuffer_status (this->priv->other_context,
+          GL_DRAW_FRAMEBUFFER);
       if (!ret) {
         GST_ERROR ("FBO errors");
         goto errors;
       }
       gl->ReadBuffer (GL_BACK);
       gl->BlitFramebuffer (0, 0, width, height,
-          0, 0, width, height,
-          GL_COLOR_BUFFER_BIT, GL_LINEAR);
+          0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
     } else {
-      gl->CopyTexImage2D (GL_TEXTURE_2D, 0, this->priv->internal_format, 0, 0, width, height, 0);
+      gl->CopyTexImage2D (GL_TEXTURE_2D, 0, this->priv->internal_format, 0, 0,
+          width, height, 0);
 
       GLenum err = gl->GetError ();
       if (err && this->priv->internal_format == GL_RGBA) {
         this->priv->internal_format = GL_RGB;
-        GST_WARNING ("Falling back to GL_RGB (opaque) when copying QML texture.");
+        GST_WARNING
+            ("Falling back to GL_RGB (opaque) when copying QML texture.");
         gl->CopyTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, 0, 0, width, height, 0);
         err = gl->GetError ();
       }
@@ -276,12 +292,13 @@ Qt6GLWindow::afterRendering()
   gl->BindFramebuffer (fbo_target, 0);
 
   if (gl->BlitFramebuffer)
-      gl->BindFramebuffer (GL_DRAW_FRAMEBUFFER, 0);
+    gl->BindFramebuffer (GL_DRAW_FRAMEBUFFER, 0);
 
   if (this->priv->context) {
     sync_meta = gst_buffer_get_gl_sync_meta (this->priv->buffer);
     if (!sync_meta) {
-      sync_meta = gst_buffer_add_gl_sync_meta (this->priv->context, this->priv->buffer);
+      sync_meta =
+          gst_buffer_add_gl_sync_meta (this->priv->context, this->priv->buffer);
     }
     gst_gl_sync_meta_set_sync_point (sync_meta, this->priv->other_context);
   }
@@ -307,14 +324,16 @@ errors:
 }
 
 void
-Qt6GLWindow::onSceneGraphInitialized()
+Qt6GLWindow::onSceneGraphInitialized ()
 {
-  QSGRendererInterface *renderer = source->rendererInterface();
+  QSGRendererInterface *renderer = source->rendererInterface ();
   if (!renderer)
     return;
 
-  if (renderer->graphicsApi() != QSGRendererInterface::GraphicsApi::OpenGL) {
-    GST_WARNING ("%p scene graph initialized with a non-OpenGL renderer interface", this);
+  if (renderer->graphicsApi () != QSGRendererInterface::GraphicsApi::OpenGL) {
+    GST_WARNING
+        ("%p scene graph initialized with a non-OpenGL renderer interface",
+        this);
     return;
   }
 
@@ -338,7 +357,7 @@ Qt6GLWindow::onSceneGraphInitialized()
 }
 
 void
-Qt6GLWindow::onSceneGraphInvalidated()
+Qt6GLWindow::onSceneGraphInvalidated ()
 {
   GST_DEBUG ("scene graph invalidated");
 
@@ -358,13 +377,13 @@ Qt6GLWindow::onSceneGraphInvalidated()
 }
 
 bool
-Qt6GLWindow::getGeometry(int * width, int * height)
+Qt6GLWindow::getGeometry (int *width, int *height)
 {
   if (width == NULL || height == NULL)
     return FALSE;
 
-  *width = this->source->width();
-  *height = this->source->height();
+  *width = this->source->width ();
+  *height = this->source->height ();
 
   return TRUE;
 }
@@ -410,7 +429,8 @@ qt6_gl_window_set_context (Qt6GLWindow * qt6_gl_window, GstGLContext * context)
   if (qt6_gl_window->priv->context && qt6_gl_window->priv->context != context)
     return FALSE;
 
-  gst_object_replace ((GstObject **) &qt6_gl_window->priv->context, (GstObject *) context);
+  gst_object_replace ((GstObject **) & qt6_gl_window->priv->context,
+      (GstObject *) context);
 
   return TRUE;
 }
@@ -432,8 +452,8 @@ qt6_gl_window_take_buffer (Qt6GLWindow * qt6_gl_window, GstCaps ** updated_caps)
 
   g_mutex_lock (&qt6_gl_window->priv->lock);
 
-  if (qt6_gl_window->priv->quit){
-    GST_DEBUG("about to quit, drop this buffer");
+  if (qt6_gl_window->priv->quit) {
+    GST_DEBUG ("about to quit, drop this buffer");
     g_mutex_unlock (&qt6_gl_window->priv->lock);
     return NULL;
   }
@@ -447,7 +467,8 @@ qt6_gl_window_take_buffer (Qt6GLWindow * qt6_gl_window, GstCaps ** updated_caps)
   if (qt6_gl_window->priv->new_caps) {
     *updated_caps = gst_video_info_to_caps (&qt6_gl_window->priv->v_info);
     gst_caps_set_features (*updated_caps, 0,
-        gst_caps_features_from_string (GST_CAPS_FEATURE_MEMORY_GL_MEMORY));
+        gst_caps_features_new_single_static_str
+        (GST_CAPS_FEATURE_MEMORY_GL_MEMORY));
     qt6_gl_window->priv->new_caps = FALSE;
   }
 
@@ -457,7 +478,8 @@ qt6_gl_window_take_buffer (Qt6GLWindow * qt6_gl_window, GstCaps ** updated_caps)
 }
 
 void
-qt6_gl_window_use_default_fbo (Qt6GLWindow * qt6_gl_window, gboolean useDefaultFbo)
+qt6_gl_window_use_default_fbo (Qt6GLWindow * qt6_gl_window,
+    gboolean useDefaultFbo)
 {
   g_return_if_fail (qt6_gl_window != NULL);
 
@@ -470,25 +492,25 @@ qt6_gl_window_use_default_fbo (Qt6GLWindow * qt6_gl_window, gboolean useDefaultF
 }
 
 void
-qt6_gl_window_unlock(Qt6GLWindow* qt6_gl_window)
+qt6_gl_window_unlock (Qt6GLWindow * qt6_gl_window)
 {
-  g_mutex_lock(&qt6_gl_window->priv->lock);
+  g_mutex_lock (&qt6_gl_window->priv->lock);
 
-  GST_DEBUG("unlock window");
+  GST_DEBUG ("unlock window");
   qt6_gl_window->priv->result = FALSE;
-  g_cond_signal(&qt6_gl_window->priv->update_cond);
+  g_cond_signal (&qt6_gl_window->priv->update_cond);
 
-  g_mutex_unlock(&qt6_gl_window->priv->lock);
+  g_mutex_unlock (&qt6_gl_window->priv->lock);
 }
 
 void
-qt6_gl_window_unlock_stop(Qt6GLWindow* qt6_gl_window)
+qt6_gl_window_unlock_stop (Qt6GLWindow * qt6_gl_window)
 {
-  g_mutex_lock(&qt6_gl_window->priv->lock);
+  g_mutex_lock (&qt6_gl_window->priv->lock);
 
-  GST_DEBUG("unlock stop window");
+  GST_DEBUG ("unlock stop window");
   qt6_gl_window->priv->result = TRUE;
-  g_cond_signal(&qt6_gl_window->priv->update_cond);
+  g_cond_signal (&qt6_gl_window->priv->update_cond);
 
-  g_mutex_unlock(&qt6_gl_window->priv->lock);
+  g_mutex_unlock (&qt6_gl_window->priv->lock);
 }

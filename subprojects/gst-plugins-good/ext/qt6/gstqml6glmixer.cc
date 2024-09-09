@@ -103,18 +103,22 @@ struct _GstQml6GLMixerPad
 {
   GstGLMixerPad parent;
 
-  QSharedPointer<Qt6GLVideoItemInterface> widget;
+    QSharedPointer < Qt6GLVideoItemInterface > widget;
 };
 
-G_DEFINE_FINAL_TYPE (GstQml6GLMixerPad, gst_qml6_gl_mixer_pad, GST_TYPE_GL_MIXER_PAD);
+G_DEFINE_FINAL_TYPE (GstQml6GLMixerPad, gst_qml6_gl_mixer_pad,
+    GST_TYPE_GL_MIXER_PAD);
 
 static gboolean
-gst_qml6_gl_mixer_pad_prepare_frame (GstVideoAggregatorPad *vagg_pad, GstVideoAggregator * vagg,
-    GstBuffer *buffer, GstVideoFrame * prepared_frame)
+gst_qml6_gl_mixer_pad_prepare_frame (GstVideoAggregatorPad * vagg_pad,
+    GstVideoAggregator * vagg, GstBuffer * buffer,
+    GstVideoFrame * prepared_frame)
 {
   GstQml6GLMixerPad *pad = GST_QML6_GL_MIXER_PAD (vagg_pad);
 
-  if (!GST_VIDEO_AGGREGATOR_PAD_CLASS (gst_qml6_gl_mixer_pad_parent_class)->prepare_frame (vagg_pad, vagg, buffer, prepared_frame))
+  if (!GST_VIDEO_AGGREGATOR_PAD_CLASS
+      (gst_qml6_gl_mixer_pad_parent_class)->prepare_frame (vagg_pad, vagg,
+          buffer, prepared_frame))
     return FALSE;
 
   if (pad->widget) {
@@ -124,7 +128,9 @@ gst_qml6_gl_mixer_pad_prepare_frame (GstVideoAggregatorPad *vagg_pad, GstVideoAg
     GstGLContext *context;
 
     in_caps = gst_video_info_to_caps (&vagg_pad->info);
-    gst_caps_set_features_simple (in_caps, gst_caps_features_from_string (GST_CAPS_FEATURE_MEMORY_GL_MEMORY));
+    gst_caps_set_features_simple (in_caps,
+        gst_caps_features_new_single_static_str
+        (GST_CAPS_FEATURE_MEMORY_GL_MEMORY));
     pad->widget->setCaps (in_caps);
     gst_clear_caps (&in_caps);
 
@@ -156,12 +162,13 @@ gst_qml6_gl_mixer_pad_set_property (GObject * object, guint prop_id,
   GstQml6GLMixerPad *qml6_gl_mixer_pad = GST_QML6_GL_MIXER_PAD (object);
 
   switch (prop_id) {
-    case PROP_PAD_WIDGET: {
-      Qt6GLVideoItem *qt_item = static_cast<Qt6GLVideoItem *> (g_value_get_pointer (value));
+    case PROP_PAD_WIDGET:{
+      Qt6GLVideoItem *qt_item =
+          static_cast < Qt6GLVideoItem * >(g_value_get_pointer (value));
       if (qt_item)
-        qml6_gl_mixer_pad->widget = qt_item->getInterface();
+        qml6_gl_mixer_pad->widget = qt_item->getInterface ();
       else
-        qml6_gl_mixer_pad->widget.clear();
+        qml6_gl_mixer_pad->widget.clear ();
       break;
     }
     default:
@@ -182,7 +189,7 @@ gst_qml6_gl_mixer_pad_get_property (GObject * object, guint prop_id,
        * sure the widget is going to be kept alive or
        * this can crash */
       if (qml6_gl_mixer_pad->widget)
-        g_value_set_pointer (value, qml6_gl_mixer_pad->widget->videoItem());
+        g_value_set_pointer (value, qml6_gl_mixer_pad->widget->videoItem ());
       else
         g_value_set_pointer (value, NULL);
       break;
@@ -197,7 +204,7 @@ gst_qml6_gl_mixer_pad_finalize (GObject * object)
 {
   GstQml6GLMixerPad *pad = GST_QML6_GL_MIXER_PAD (object);
 
-  pad->widget.clear();
+  pad->widget.clear ();
 
   G_OBJECT_CLASS (gst_qml6_gl_mixer_pad_parent_class)->finalize (object);
 }
@@ -206,7 +213,8 @@ static void
 gst_qml6_gl_mixer_pad_class_init (GstQml6GLMixerPadClass * klass)
 {
   GObjectClass *gobject_class = (GObjectClass *) klass;
-  GstVideoAggregatorPadClass *vagg_pad_class = (GstVideoAggregatorPadClass *) klass;
+  GstVideoAggregatorPadClass *vagg_pad_class =
+      (GstVideoAggregatorPadClass *) klass;
 
   gobject_class->set_property = gst_qml6_gl_mixer_pad_set_property;
   gobject_class->get_property = gst_qml6_gl_mixer_pad_get_property;
@@ -223,7 +231,7 @@ gst_qml6_gl_mixer_pad_class_init (GstQml6GLMixerPadClass * klass)
 static void
 gst_qml6_gl_mixer_pad_init (GstQml6GLMixerPad * pad)
 {
-  pad->widget = QSharedPointer<Qt6GLVideoItemInterface>();
+  pad->widget = QSharedPointer < Qt6GLVideoItemInterface > ();
 }
 
 static void gst_qml6_gl_mixer_finalize (GObject * object);
@@ -238,12 +246,14 @@ static gboolean gst_qml6_gl_mixer_process_buffers (GstGLMixer * btrans,
 static gboolean gst_qml6_gl_mixer_gl_start (GstGLBaseMixer * bmixer);
 static void gst_qml6_gl_mixer_gl_stop (GstGLBaseMixer * bmixer);
 
-static GstFlowReturn gst_qml6_gl_mixer_create_output_buffer (GstVideoAggregator * vagg, GstBuffer ** outbuf);
+static GstFlowReturn gst_qml6_gl_mixer_create_output_buffer (GstVideoAggregator
+    * vagg, GstBuffer ** outbuf);
 
-static gboolean gst_qml6_gl_mixer_negotiated_src_caps (GstAggregator * aggregator, GstCaps * out_caps);
+static gboolean gst_qml6_gl_mixer_negotiated_src_caps (GstAggregator *
+    aggregator, GstCaps * out_caps);
 
-static GstStateChangeReturn gst_qml6_gl_mixer_change_state (GstElement * element,
-    GstStateChange transition);
+static GstStateChangeReturn gst_qml6_gl_mixer_change_state (GstElement *
+    element, GstStateChange transition);
 
 enum
 {
@@ -278,7 +288,8 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink_%u",
             "{ RGBA, BGRA, YV12 }"))
     );
 
-struct _GstQml6GLMixer {
+struct _GstQml6GLMixer
+{
   GstGLMixer parent;
 
   gchar *qml_scene;
@@ -364,7 +375,8 @@ gst_qml6_gl_mixer_class_init (GstQml6GLMixerClass * klass)
   gst_element_class_add_static_pad_template_with_gtype (element_class,
       &sink_factory, GST_TYPE_QML6_GL_MIXER_PAD);
 
-  gst_type_mark_as_plugin_api (GST_TYPE_QML6_GL_MIXER_PAD, (GstPluginAPIFlags) 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_QML6_GL_MIXER_PAD,
+      (GstPluginAPIFlags) 0);
 }
 
 static void
@@ -414,7 +426,7 @@ gst_qml6_gl_mixer_get_property (GObject * object, guint prop_id,
     case PROP_ROOT_ITEM:
       GST_OBJECT_LOCK (qml6_gl_mixer);
       if (qml6_gl_mixer->renderer) {
-        QQuickItem *root = qml6_gl_mixer->renderer->rootItem();
+        QQuickItem *root = qml6_gl_mixer->renderer->rootItem ();
         if (root)
           g_value_set_pointer (value, root);
         else
@@ -431,7 +443,8 @@ gst_qml6_gl_mixer_get_property (GObject * object, guint prop_id,
 }
 
 static gboolean
-gst_qml6_gl_mixer_negotiated_src_caps (GstAggregator * aggregator, GstCaps * out_caps)
+gst_qml6_gl_mixer_negotiated_src_caps (GstAggregator * aggregator,
+    GstCaps * out_caps)
 {
   GstQml6GLMixer *qml6_gl_mixer = GST_QML6_GL_MIXER (aggregator);
   GstVideoInfo out_info;
@@ -441,8 +454,9 @@ gst_qml6_gl_mixer_negotiated_src_caps (GstAggregator * aggregator, GstCaps * out
 
   qml6_gl_mixer->renderer->setSize (GST_VIDEO_INFO_WIDTH (&out_info),
       GST_VIDEO_INFO_HEIGHT (&out_info));
-  
-  return GST_AGGREGATOR_CLASS (parent_class)->negotiated_src_caps (aggregator, out_caps);
+
+  return GST_AGGREGATOR_CLASS (parent_class)->negotiated_src_caps (aggregator,
+      out_caps);
 }
 
 static gboolean
@@ -455,8 +469,10 @@ gst_qml6_gl_mixer_gl_start (GstGLBaseMixer * bmixer)
 
   GST_TRACE_OBJECT (bmixer, "using scene:\n%s", qml6_gl_mixer->qml_scene);
 
-  if (!qml6_gl_mixer->qml_scene || g_strcmp0 (qml6_gl_mixer->qml_scene, "") == 0) {
-    GST_ELEMENT_ERROR (bmixer, RESOURCE, NOT_FOUND, ("qml-scene property not set"), (NULL));
+  if (!qml6_gl_mixer->qml_scene
+      || g_strcmp0 (qml6_gl_mixer->qml_scene, "") == 0) {
+    GST_ELEMENT_ERROR (bmixer, RESOURCE, NOT_FOUND,
+        ("qml-scene property not set"), (NULL));
     return FALSE;
   }
 
@@ -481,7 +497,7 @@ gst_qml6_gl_mixer_gl_start (GstGLBaseMixer * bmixer)
     goto fail_renderer;
   }
 
-  root = qml6_gl_mixer->renderer->rootItem();
+  root = qml6_gl_mixer->renderer->rootItem ();
   if (!root) {
     GST_ELEMENT_ERROR (GST_ELEMENT (bmixer), RESOURCE, NOT_FOUND,
         ("Qml scene does not have a root item"), (NULL));
@@ -490,13 +506,14 @@ gst_qml6_gl_mixer_gl_start (GstGLBaseMixer * bmixer)
   GST_OBJECT_UNLOCK (bmixer);
 
   g_object_notify (G_OBJECT (qml6_gl_mixer), "root-item");
-  g_signal_emit (qml6_gl_mixer, gst_qml6_gl_mixer_signals[SIGNAL_QML_SCENE_INITIALIZED], 0);
+  g_signal_emit (qml6_gl_mixer,
+      gst_qml6_gl_mixer_signals[SIGNAL_QML_SCENE_INITIALIZED], 0);
 
   return TRUE;
 
 fail_renderer:
   {
-    qml6_gl_mixer->renderer->cleanup();
+    qml6_gl_mixer->renderer->cleanup ();
     delete qml6_gl_mixer->renderer;
     qml6_gl_mixer->renderer = NULL;
     GST_OBJECT_UNLOCK (bmixer);
@@ -517,15 +534,16 @@ gst_qml6_gl_mixer_gl_stop (GstGLBaseMixer * bmixer)
   qml6_gl_mixer->renderer = NULL;
   GST_OBJECT_UNLOCK (qml6_gl_mixer);
 
-  g_signal_emit (qml6_gl_mixer, gst_qml6_gl_mixer_signals[SIGNAL_QML_SCENE_DESTROYED], 0);
+  g_signal_emit (qml6_gl_mixer,
+      gst_qml6_gl_mixer_signals[SIGNAL_QML_SCENE_DESTROYED], 0);
   g_object_notify (G_OBJECT (qml6_gl_mixer), "root-item");
 
   /* TODO: clear all pad buffers in the items?
-  if (qml6_gl_mixer->widget)
-    qml6_gl_mixer->widget->setBuffer (NULL);
-*/
+     if (qml6_gl_mixer->widget)
+     qml6_gl_mixer->widget->setBuffer (NULL);
+   */
   if (renderer) {
-    renderer->cleanup();
+    renderer->cleanup ();
     delete renderer;
   }
 
@@ -533,21 +551,25 @@ gst_qml6_gl_mixer_gl_stop (GstGLBaseMixer * bmixer)
 }
 
 static GstFlowReturn
-gst_qml6_gl_mixer_create_output_buffer (GstVideoAggregator * vagg, GstBuffer ** outbuf)
+gst_qml6_gl_mixer_create_output_buffer (GstVideoAggregator * vagg,
+    GstBuffer ** outbuf)
 {
-  *outbuf = gst_buffer_new();
+  *outbuf = gst_buffer_new ();
 
   return GST_FLOW_OK;
 }
 
 static gboolean
-qml6_gl_mixer_gl_callback (GstGLContext *context, GstQml6GLMixer * qml6_gl_mixer)
+qml6_gl_mixer_gl_callback (GstGLContext * context,
+    GstQml6GLMixer * qml6_gl_mixer)
 {
   GstVideoAggregator *vagg = GST_VIDEO_AGGREGATOR (qml6_gl_mixer);
   GstGLMemory *out_mem;
 
   /* XXX: is this the correct ts to drive the animation */
-  out_mem = qml6_gl_mixer->renderer->generateOutput (GST_BUFFER_PTS (qml6_gl_mixer->outbuf));
+  out_mem =
+      qml6_gl_mixer->renderer->
+      generateOutput (GST_BUFFER_PTS (qml6_gl_mixer->outbuf));
   if (!out_mem) {
     GST_ERROR_OBJECT (qml6_gl_mixer, "Failed to generate output");
     return FALSE;
@@ -556,15 +578,13 @@ qml6_gl_mixer_gl_callback (GstGLContext *context, GstQml6GLMixer * qml6_gl_mixer
   gst_buffer_append_memory (qml6_gl_mixer->outbuf, (GstMemory *) out_mem);
   gst_buffer_add_video_meta (qml6_gl_mixer->outbuf, (GstVideoFrameFlags) 0,
       GST_VIDEO_INFO_FORMAT (&vagg->info),
-      GST_VIDEO_INFO_WIDTH (&vagg->info),
-      GST_VIDEO_INFO_HEIGHT (&vagg->info));
+      GST_VIDEO_INFO_WIDTH (&vagg->info), GST_VIDEO_INFO_HEIGHT (&vagg->info));
 
   return TRUE;
 }
 
 static gboolean
-gst_qml6_gl_mixer_process_buffers (GstGLMixer * mix,
-    GstBuffer * outbuf)
+gst_qml6_gl_mixer_process_buffers (GstGLMixer * mix, GstBuffer * outbuf)
 {
   GstQml6GLMixer *qml6_gl_mixer = GST_QML6_GL_MIXER (mix);
   GstGLBaseMixer *bmix = GST_GL_BASE_MIXER (mix);
@@ -572,7 +592,7 @@ gst_qml6_gl_mixer_process_buffers (GstGLMixer * mix,
 
   qml6_gl_mixer->outbuf = outbuf;
   gst_gl_context_thread_add (context,
-    (GstGLContextThreadFunc) qml6_gl_mixer_gl_callback, qml6_gl_mixer);
+      (GstGLContextThreadFunc) qml6_gl_mixer_gl_callback, qml6_gl_mixer);
   qml6_gl_mixer->outbuf = NULL;
 
   gst_clear_object (&context);
@@ -581,8 +601,7 @@ gst_qml6_gl_mixer_process_buffers (GstGLMixer * mix,
 }
 
 static GstStateChangeReturn
-gst_qml6_gl_mixer_change_state (GstElement * element,
-    GstStateChange transition)
+gst_qml6_gl_mixer_change_state (GstElement * element, GstStateChange transition)
 {
   GstQml6GLMixer *qml6_gl_mixer = GST_QML6_GL_MIXER (element);
   GstGLBaseMixer *bmixer = GST_GL_BASE_MIXER (element);
@@ -593,11 +612,11 @@ gst_qml6_gl_mixer_change_state (GstElement * element,
       gst_element_state_get_name (GST_STATE_TRANSITION_NEXT (transition)));
 
   switch (transition) {
-    case GST_STATE_CHANGE_NULL_TO_READY: {
+    case GST_STATE_CHANGE_NULL_TO_READY:{
       QGuiApplication *app;
       GstGLDisplay *display = NULL;
 
-      app = static_cast<QGuiApplication *> (QCoreApplication::instance ());
+      app = static_cast < QGuiApplication * >(QCoreApplication::instance ());
       if (!app) {
         GST_ELEMENT_ERROR (element, RESOURCE, NOT_FOUND,
             ("%s", "Failed to connect to Qt"),
@@ -610,7 +629,8 @@ gst_qml6_gl_mixer_change_state (GstElement * element,
       if (display != bmixer->display)
         /* always propagate. The application may need to choose between window
          * system display connections */
-        gst_gl_element_propagate_display_context (GST_ELEMENT (qml6_gl_mixer), display);
+        gst_gl_element_propagate_display_context (GST_ELEMENT (qml6_gl_mixer),
+            display);
       gst_object_unref (display);
       break;
     }
