@@ -77,3 +77,21 @@ To run the tutorials, simply execute the desired tutorial:
 ``` c
 ./basic-tutorial-1
 ```
+
+
+### Building the tutorials with Meson
+The GStreamer tutorials also support to be built with Meson. Therefore, they are built along with the rest of the project when you compile it. However, they can also be run individually. In the root folder of GStreamer:
+``` 
+meson setup builddir
+```
+This configures the building directory. Then, to compile and run a single tutorial:
+``` 
+meson compile -C builddir subprojects/gst-docs/examples/tutorials/basic-tutorial-1
+```
+``` 
+./builddir/subprojects/gst-docs/examples/tutorials/basic-tutorial-1
+```
+#### Building and debugging using VSCode
+VSCode allows to compile, debug, and execute targets using its [Meson extension](https://marketplace.visualstudio.com/items?itemName=mesonbuild.mesonbuild). This is ideal for junior developers who are not yet familiar with the command line and basic Meson commands.
+
+Individual targets can be compiled separately by clicking on them in the left sidebar of the Meson extension. It also allows you to debug targets in the ["Run and Debug"](https://code.visualstudio.com/docs/editor/debugging) menu on the same sidebar.

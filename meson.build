@@ -136,6 +136,7 @@ subprojects = [
   ['gst-examples', { 'option': get_option('gst-examples'), 'match_gst_versions': false}],
   ['gtk', {'option': get_option('gtk'), 'match_gst_version': false, 'subproject_options': gtk_options}],
   ['gst-plugins-rs', { 'option': get_option('rs'), 'build-hotdoc': true, 'match_gst_version': false}],
+  ['gst-docs', { 'option': get_option('gst-docs'), 'build-hotdoc': true}],
 ]
 
 if get_option('build-tools-source') == 'subproject'
