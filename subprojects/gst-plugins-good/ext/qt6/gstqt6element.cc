@@ -23,7 +23,11 @@
 #endif
 
 #include "gstqt6elements.h"
+// FIXME: use build_qt6_gl
+#ifdef HAVE_QT_GL
 #include "qt6glitem.h"
+#endif
+#include "qt6switem.h"
 #include <QtQml/QQmlApplicationEngine>
 
 void
@@ -32,7 +36,11 @@ qt6_element_init (GstPlugin * plugin)
   static gsize res = FALSE;
   if (g_once_init_enter (&res)) {
     /* this means the plugin must be loaded before the qml engine is loaded */
+    // FIXME: use build_qt6_gl
+    #ifdef HAVE_QT_GL
     qmlRegisterType<Qt6GLVideoItem> ("org.freedesktop.gstreamer.Qt6GLVideoItem", 1, 0, "GstGLQt6VideoItem");
+    #endif
+    qmlRegisterType<Qt6SWVideoItem> ("org.freedesktop.gstreamer.Qt6SWVideoItem", 1, 0, "GstSWQt6VideoItem");
     g_once_init_leave (&res, TRUE);
   }
 }
